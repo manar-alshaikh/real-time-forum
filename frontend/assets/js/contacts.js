@@ -37,70 +37,89 @@ setupMessageActivityListener() {
         this.setupPeriodicRefresh();
     }
 
-    async initializeUserAndContacts() {
-        try {
-            // Step 1: Get current user first
-            await this.fetchCurrentUser();
+// In ContactsManager class, after successful initialization
 
-            if (!this.currentUser) {
-                // console.error('Current user not available, retrying in 1 second...');
-                setTimeout(() => this.initializeUserAndContacts(), 1000);
-                return;
-            }
+async initializeUserAndContacts() {
+    try {
+        // Step 1: Get current user first
+        await this.fetchCurrentUser();
 
-            console.log('Current user confirmed:', this.currentUser);
-
-            // Step 2: Now load contacts with current user available
-            await this.loadContacts();
-
-            this.isInitialized = true;
-            console.log('ContactsManager fully initialized');
-
-        } catch (error) {
-            console.error('Failed to initialize contacts manager:', error);
-            // Retry initialization
-            setTimeout(() => this.initializeUserAndContacts(), 2000);
+        if (!this.currentUser) {
+            setTimeout(() => this.initializeUserAndContacts(), 1000);
+            return;
         }
+
+        console.log('Current user confirmed:', this.currentUser);
+
+        // Step 2: Now load contacts with current user available
+        await this.loadContacts();
+
+        this.isInitialized = true;
+        console.log('ContactsManager fully initialized');
+
+        // ✅ EMIT READY EVENT
+        document.dispatchEvent(new CustomEvent('contactsManagerReady', {
+            detail: {
+                currentUserId: this.currentUserId,
+                currentUser: this.currentUser
+            }
+        }));
+        console.log('📢 ContactsManager ready event dispatched');
+
+    } catch (error) {
+        console.error('Failed to initialize contacts manager:', error);
+        setTimeout(() => this.initializeUserAndContacts(), 2000);
     }
+}
 
-    async fetchCurrentUser() {
-        try {
-            console.log('Fetching current user from session...');
-            const data = await apiGet('/api/session');
-            console.log('Session API response:', data);
+async fetchCurrentUser() {
+    try {
+        console.log('Fetching current user from session...');
+        const data = await apiGet('/api/session');
+        console.log('Session API response:', data);
 
-            if (data.success && data.message) {
-                this.currentUser = data.message;
-
-                const contactsData = await apiGet('/api/contacts');
-                
-                this.currentUserId = await this.getUserIdFromUsername(data.message);
-
-                // Store globally for other modules
-                window.currentUser = this.currentUser;
-                window.currentUserId = this.currentUserId;
-
-                console.log('✅ Current user set:', this.currentUser, 'ID:', this.currentUserId);
-                return true;
-            } else {
-                // console.error('❌ No user in session or API returned failure');
+        if (data.success && data.message) {
+            this.currentUser = data.message;
+            
+            // Get user ID using the fixed endpoint
+            this.currentUserId = await this.getUserIdFromUsername(data.message);
+            
+            if (!this.currentUserId) {
+                console.error('❌ Failed to get user ID for current user');
                 return false;
             }
-        } catch (error) {
-            console.error('Failed to fetch current user:', error);
+
+            // Store globally for other modules
+            window.currentUser = this.currentUser;
+            window.currentUserId = this.currentUserId;
+
+            console.log('✅ Current user set:', this.currentUser, 'ID:', this.currentUserId);
+            return true;
+        } else {
+            console.error('❌ No user in session or API returned failure');
             return false;
         }
+    } catch (error) {
+        console.error('Failed to fetch current user:', error);
+        return false;
     }
+}
 
-    async getUserIdFromUsername(username) {
-        try {
-            const data = await apiGet(`/api/user/id?username=${encodeURIComponent(username)}`);
-            return data.user_id || data.id;
-        } catch (error) {
-            // console.error('Failed to get user ID:', error);
+   async getUserIdFromUsername(username) {
+    try {
+        const data = await apiGet(`/api/user/id?username=${encodeURIComponent(username)}`);
+        if (data && data.success) {
+            console.log('✅ Got user ID for', username, ':', data.user_id);
+            return data.user_id;
+        } else {
+            console.error('❌ Failed to get user ID for', username);
             return null;
         }
+    } catch (error) {
+        console.error('Failed to get user ID:', error);
+        return null;
     }
+}
 
     async loadContacts() {
         try {
@@ -290,7 +309,7 @@ sortContactsAlphabetically(contacts) {
         return contactDiv;
     }
 
-    updateContactOrderAfterMessage(userId, timestamp) {
+updateContactOrderAfterMessage(userId, timestamp) {
   console.log('Updating contact order for user:', userId, 'with timestamp:', timestamp);
 
   const contact = this.contacts.get(userId);
@@ -307,15 +326,15 @@ sortContactsAlphabetically(contacts) {
   const first = container && container.querySelector('.contact');
   if (first && Number(first.dataset.userId) === Number(userId)) {
     // prevent stacking if multiple messages land quickly
-    const existing = first.querySelector(':scope > .pm-red-dot');
+    // const existing = first.querySelector(':scope > .pm-red-dot');
     if (existing) existing.remove();
 
-    const dot = document.createElement('span');
-    dot.className = 'pm-red-dot';
-    first.appendChild(dot);
+    // const dot = document.createElement('span');
+    // dot.className = 'pm-red-dot';
+    // first.appendChild(dot);
 
     // auto remove
-    setTimeout(() => dot.remove(), 1500);
+    // setTimeout(() => dot.remove(), 1500);
   }
 
   console.log('✅ Contact order updated for:', contact.username);

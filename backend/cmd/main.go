@@ -38,6 +38,7 @@ func main() {
 	mux.HandleFunc("/api/session", handlers.SessionHandler)
 	mux.HandleFunc("/api/logout", handlers.LogoutHandler)
 	mux.HandleFunc("/api/contacts", handlers.GetAllUsersHandler)
+	mux.HandleFunc("/api/user/id", handlers.GetUserIDHandler)
 	mux.HandleFunc("/api/categories", handlers.CategoriesHandler) 
 	mux.HandleFunc("/api/posts", handlers.PostsHandler)
 	mux.HandleFunc("/api/posts/", handlers.PostSubresourceRouter)

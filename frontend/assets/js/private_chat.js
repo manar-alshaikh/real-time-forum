@@ -21,25 +21,53 @@ class PrivateChatManager {
         this.typingKeepAliveInterval = null;
         this.isCurrentlyTyping = false;
         this.emojiPicker = new EmojiPicker();
-        this.init();
+        this.isInitialized = false;
+
+         this.waitForContactsManager();
     }
+
+async waitForContactsManager() {
+    console.log('PrivateChatManager waiting for ContactsManager...');
+    
+    return new Promise((resolve) => {
+        const eventHandler = (event) => {
+            this.currentUserId = event.detail.currentUserId;
+            console.log('✅ PrivateChatManager received user ID via event:', this.currentUserId);
+            document.removeEventListener('contactsManagerReady', eventHandler);
+            this.init();
+            resolve();
+        };
+        
+        // Listen for the ready event
+        document.addEventListener('contactsManagerReady', eventHandler);
+        
+        // Fallback: Check every 100ms for 5 seconds
+        let attempts = 0;
+        const fallbackCheck = setInterval(() => {
+            attempts++;
+            if (window.contactsManager && window.contactsManager.currentUserId) {
+                clearInterval(fallbackCheck);
+                this.currentUserId = window.contactsManager.currentUserId;
+                console.log('✅ PrivateChatManager fallback - got user ID:', this.currentUserId);
+                this.init();
+                resolve();
+            } else if (attempts > 50) {
+                clearInterval(fallbackCheck);
+                console.error('❌ Timeout waiting for ContactsManager');
+                resolve();
+            }
+        }, 100);
+    });
+}
 
     init() {
         console.log('PrivateChatManager initializing...');
-        this.setCurrentUserId();
+        // this.setCurrentUserId();
         this.setupEventListeners();
         this.setupWebSocketHandlers();
         this.setupScrollListener();
         this.setupEmojiPicker();
-    }
-
-    setCurrentUserId() {
-        try {
-            this.currentUserId = window.currentUser?.id || localStorage.getItem('currentUserId');
-            console.log('Current user ID:', this.currentUserId);
-        } catch (error) {
-            console.error('Failed to get current user ID:', error);
-        }
+         this.isInitialized = true;
     }
 
     setupEventListeners() {
@@ -356,9 +384,7 @@ handleTypingStop() {
                 switch (data.type) {
                     case 'new_private_message':
                         // QUICK FIX: Ignore our own messages from WebSocket to prevent duplicates
-                        if (data.data.from_user_id !== this.currentUserId) {
                             this.handleNewMessage(data.data);
-                        }
                         break;
                     case 'user_typing':
                         this.handleUserTyping(data.data);
@@ -459,52 +485,58 @@ handleTypingStop() {
         this.scrollToBottom();
     }
 
-    createMessageElement(message) {
-        const messageDiv = document.createElement('div');
-        const isOwnMessage = message.from_user_id === this.currentUserId;
+createMessageElement(message) {
+    const messageDiv = document.createElement('div');
+    const isOwnMessage = message.from_user_id === this.currentUserId;
 
-        messageDiv.className = `message ${isOwnMessage ? 'message-own' : 'message-theirs'}`;
-        messageDiv.dataset.messageId = message.id;
+    messageDiv.className = `message ${isOwnMessage ? 'message-own' : 'message-theirs'}`;
+    messageDiv.dataset.messageId = message.id;
 
-        const messageTime = this.formatTime(message.created_at);
-        const senderName = message.username || 'Unknown User';
+    const messageTime = this.formatTime(message.created_at);
+    const senderName = message.username || 'Unknown User';
+    
+    // Get user initial for default avatar
+    const getUserInitial = (name) => {
+        if (!name) return '?';
+        return name.charAt(0).toUpperCase();
+    };
 
-        if (isOwnMessage) {
-            messageDiv.innerHTML = `
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-time">${messageTime}</span>
-                        <span class="message-sender">You</span>
-                    </div>
-                    <div class="message-text">${escapeHTML(message.content)}</div>
-                </div>
-                <div class="message-avatar">
-                    ${message.profile_picture ?
+    if (isOwnMessage) {
+        messageDiv.innerHTML = `
+            <div class="message-avatar">
+                ${message.profile_picture ?
                     `<img src="${escapeHTML(message.profile_picture)}" alt="You">` :
-                    '<div class="default-avatar">👤</div>'
+                    `<div class="default-avatar" style="color: white; font-weight: normal; font-size: 15px; " >${getUserInitial(senderName)}</div>`
                 }
+            </div>
+            <div class="message-content" style="background: linear-gradient(135deg, #401668ff, #7e22ce);">
+                <div class="message-header">
+                    <span class="message-sender">You</span>&nbsp;&nbsp;&nbsp;&nbsp;
+                    <span class="message-time">${messageTime}</span>
                 </div>
-            `;
-        } else {
-            messageDiv.innerHTML = `
-                <div class="message-avatar">
-                    ${message.profile_picture ?
+                <div class="message-text">${escapeHTML(message.content)}</div>
+            </div>
+        `;
+    } else {
+        messageDiv.innerHTML = `
+            <div class="message-avatar">
+                ${message.profile_picture ?
                     `<img src="${escapeHTML(message.profile_picture)}" alt="${escapeHTML(senderName)}">` :
-                    '<div class="default-avatar">👤</div>'
+                    `<div class="default-avatar">${getUserInitial(senderName)}</div>`
                 }
+            </div>
+            <div class="message-content">
+                <div class="message-header">
+                    <span class="message-sender">${escapeHTML(senderName)}</span>&nbsp;&nbsp;&nbsp;&nbsp;
+                    <span class="message-time">${messageTime}</span>
                 </div>
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-sender">${escapeHTML(senderName)}</span>
-                        <span class="message-time">${messageTime}</span>
-                    </div>
-                    <div class="message-text">${escapeHTML(message.content)}</div>
-                </div>
-            `;
-        }
-
-        return messageDiv;
+                <div class="message-text">${escapeHTML(message.content)}</div>
+            </div>
+        `;
     }
+
+    return messageDiv;
+}
 
     async sendMessage() {
         const messageInput = $('#chatMessageInput');
@@ -724,34 +756,43 @@ handleTypingStop() {
         this.renderTypingIndicator();
     }
 
-    renderTypingIndicator() {
-        const chatMessages = $('#chatMessages');
-        if (!chatMessages) return;
+renderTypingIndicator() {
+    const chatMessages = $('#chatMessages');
+    if (!chatMessages) return;
 
-        const existingIndicator = chatMessages.querySelector('.typing-indicator');
-        if (existingIndicator) existingIndicator.remove();
+    const existingIndicator = chatMessages.querySelector('.typing-indicator');
+    if (existingIndicator) existingIndicator.remove();
 
-        if (this.typingUsers.size > 0 && this.currentChat?.is_online) {
-            const typingNames = Array.from(this.typingUsers).join(', ');
-            const indicator = document.createElement('div');
-            indicator.className = 'typing-indicator message-theirs';
-            indicator.innerHTML = `
-                <div class="message-avatar">
-                    <div class="default-avatar">👤</div>
+    if (this.typingUsers.size > 0 && this.currentChat?.is_online) {
+        const typingNames = Array.from(this.typingUsers).join(', ');
+        
+        // Get user initial for default avatar
+        const getUserInitial = (name) => {
+            if (!name) return '?';
+            return name.charAt(0).toUpperCase();
+        };
+
+        const indicator = document.createElement('div');
+        indicator.className = 'typing-indicator message-theirs';
+        indicator.innerHTML = `
+            <div class="message-avatar">
+                ${this.currentChat.profile_picture ?
+                    `<img src="${escapeHTML(this.currentChat.profile_picture)}" alt="${escapeHTML(this.currentChat.username)}">` :
+                    `<div class="default-avatar" style="color: white;">${getUserInitial(this.currentChat.username)}</div>`
+                }
+            </div>
+            <div class="typing-content">
+                <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
                 </div>
-                <div class="typing-content">
-                    <div class="typing-text">${typingNames} is typing...</div>
-                    <div class="typing-dots">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </div>
-                </div>
-            `;
-            chatMessages.appendChild(indicator);
-            this.scrollToBottom();
-        }
+            </div>
+        `;
+        chatMessages.appendChild(indicator);
+        this.scrollToBottom();
     }
+}
 
     scrollToBottom() {
         const chatMessages = $('#chatMessages');

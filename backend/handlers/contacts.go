@@ -119,3 +119,34 @@ func EmitUserLoggedOut(userID int, username string) {
 		"is_online": false,
 	})
 }
+
+// In your handlers package
+func GetUserIDHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet {
+        sendErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    username := r.URL.Query().Get("username")
+    if username == "" {
+        sendErrorResponse(w, "Username parameter required", http.StatusBadRequest)
+        return
+    }
+
+    var userID int
+    err := db.QueryRow("SELECT user_id FROM users WHERE username = ?", username).Scan(&userID)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            sendErrorResponse(w, "User not found", http.StatusNotFound)
+        } else {
+            sendErrorResponse(w, "Database error", http.StatusInternalServerError)
+        }
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "success": true,
+        "user_id": userID,
+    })
+}
