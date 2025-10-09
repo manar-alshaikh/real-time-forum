@@ -1,0 +1,47 @@
+ body,
+ html {
+     width: 100%;
+     min-height: 100%; overflow: hidden;
+     max-height: 300vh;
+     display: flex;
+     flex-direction: column;
+     justify-content: center;
+     align-items: flex-start;
+     font-family: 'Nunito', sans-serif;
+     overflow-y: auto;
+     overflow-x: hidden;
+ }
+
+ .galaxy-container {
+     position: relative;
+     width: 100%;
+     min-height: 99.999vh;
+     background: radial-gradient(ellipse at center, #0d0d1a 0%, #000000 );
+ }
+
+ .star {
+     position: absolute;
+     width: 2px;
+     height: 2px;
+     background: white;
+     border-radius: 50%;
+     animation: twinkle 2s infinite alternate;
+ }
+
+ @keyframes twinkle {
+     0% {
+         opacity: 0.2;
+         transform: scale(0.8);
+     }
+
+     50% {
+         opacity: 1;
+         transform: scale(1.2);
+     }
+
+     100% {
+         opacity: 0.2;
+         transform: scale(0.8);
+     }
+ }
+ 

@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REAL TIME FORUM</title>
+    <link rel="stylesheet" href="./assets/css/background.css">
+    <link rel="stylesheet" href="./assets/css/registration.css">
+    <link rel="stylesheet" href="./assets/css/home.css">
+    <link rel="icon" type="image/png" href="./assets/img/logo.png">
+    <link href="https://fonts.googleapis.com/css?family=Nunito:400,600,700,800&display=swap" rel="stylesheet">
+    <style>
+        .chat-input-container {
+            position: relative;
+            padding: 0px;
+            margin: 0px;
+            background: #41443f;
+            /* Same dark background */
+            color: #e6ebf3;
+            /* Light text color */
+            border-top: 1px solid #e9ecef;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .emoji-btn {
+            background: none;
+            border: 1px solid #ddd;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .emoji-btn:hover:not(:disabled) {
+            background: #e9ecef;
+            border-color: #adb5bd;
+        }
+
+        .emoji-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #f8f9fa;
+        }
+
+        .chat-input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            max-width: 100%;
+        }
+
+        #chatMessageInput {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            resize: none;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.4;
+            max-height: 120px;
+            background: #f8f9fa;
+            transition: all 0.2s ease;
+        }
+
+        #chatMessageInput:focus {
+            outline: none;
+            border-color: #007bff;
+            background: white;
+        }
+
+        #sendMessageBtn {
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+
+        #sendMessageBtn:hover {
+            background: #0056b3;
+        }
+
+        #sendMessageBtn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .emoji-picker {
+            position: absolute;
+            bottom: 100%;
+            right: 15px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+            width: 300px;
+            margin-bottom: 10px;
+        }
+
+        .chat-input-container {
+            background: #111317;
+        }
+
+        .chatMessages {
+            color: #e6ebf3;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            background: #0f1420;
+            border-bottom: 1px solid #22324e;
+            gap: 25rem;
+        }
+
+        .chat-input-wrapper {
+            background-color: #0f1420;
+        }
+
+        #chatMessages {
+            background-color: #0f1420;
+        }
+
+        .message-content {
+            color: black;
+        }
+
+        .chat-avatar-img {
+            margin-top: 5px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .default-avatar {
+            width: 40px;
+            height: 40px;
+            background-color: #ccc;
+            color: #333;
+            font-size: 24px;
+            text-align: center;
+            line-height: 40px;
+            border-radius: 50%;
+        }
+
+        #registerForm label span,
+        #registerForm label input {
+            color: black;
+        }
+
+        #registerForm label input {
+            border-bottom: 1px solid rgba(109, 93, 93, 0.4);
+        }
+
+        .comment-section {
+            background-color: transparent;
+        }
+
+        .posts-filter {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+
+            background-color: #b3b0b2;
+            /* pastel pink */
+            border-radius: 12px;
+            padding: 10px 42px 10px 16px;
+            font-size: 15px;
+            font-weight: 500;
+            color: #5c0067;
+            cursor: pointer;
+
+            background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 2l4 4 4-4' stroke='%235c0067' stroke-width='2' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 14px;
+
+            box-shadow: 0 4px 6px rgba(104, 103, 103, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .posts-filter:hover {
+            background-color: #cac3c7;
+            border-color: #000000;
+        }
+
+        .posts-filter:focus {
+            outline: none;
+            box-shadow:  3px rgba(255, 192, 203, 0.4);
+            border-color: #5c585b;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="galaxy-container" id="galaxy">
+        <div id="registration-page">
+            <div class="cont">
+                <div class="form sign-in">
+                    <h2>Sign In</h2>
+                    <label>
+                        <span>Username or Email Address</span>
+                        <input type="email" name="email">
+                    </label>
+                    <label>
+                        <span>Password</span>
+                        <input type="password" name="password">
+                    </label>
+                    <button class="submit" type="button">Sign In</button>
+                </div>
+
+                <div class="sub-cont">
+                    <div class="img">
+                        <div class="img-text m-up">
+                            <h1>New here?</h1>
+                            <p>sign up and discover</p>
+                        </div>
+                        <div class="img-text m-in">
+                            <h1>One of us?</h1>
+                            <p>just sign in</p>
+                        </div>
+                        <div class="img-btn">
+                            <span class="m-up">Sign Up</span>
+                            <span class="m-in">Sign In</span>
+                        </div>
+                    </div>
+                    <div class="form sign-up" id="registerForm">
+                        <h2 style="color: black;">Sign Up</h2>
+                        <br>
+                        <div class="profile-wrapper">
+                            <label for="fileInput" style="display: contents; cursor: pointer;">
+                                <div class="profile-container">
+                                    <div class="default-icon">👤</div>
+                                    <img id="profileImage" class="profile-image" alt="Profile photo">
+                                </div>
+                                <div class="add-icon">+</div>
+                            </label>
+                            <input type="file" id="fileInput" name="profile_picture" accept="image/*">
+                        </div>
+                        <br>
+                        <label>
+                            <span>Username</span>
+                            <input type="text" id="registrationUsername" name="username">
+                            <div id="username-error" class="error-msg"></div>
+                        </label>
+                        <label>
+                            <span>Full Name</span>
+                            <input type="text" id="fullname" name="fullname">
+                            <div id="fullname-error" class="error-msg"></div>
+                        </label>
+                        <label>
+                            <span>Email</span>
+                            <input type="email" id="registrationEmail" name="email">
+                            <div id="email-error" class="error-msg"></div>
+                        </label>
+                        <label>
+                            <span>Date of Birth</span>
+                            <input type="date" id="dob" name="dateOfBirth">
+                            <div id="dob-error" class="error-msg"></div>
+                        </label>
+                        <label>
+                            <span>Description</span>
+                            <input type="text" id="description" name="accountDescription">
+                        </label>
+                        <label>
+                            <span>Password</span>
+                            <input type="password" id="registrationPassword" name="password">
+                            <div id="password-error" class="error-msg"></div>
+                        </label>
+                        <label>
+                            <span>Confirm Password</span>
+                            <input type="password" id="confirmPassword" name="confirmPassword">
+                            <div id="confirmPassword-error" class="error-msg"></div>
+                        </label>
+                        <div class="gender">
+                            <input type="radio" id="female" name="gender" value="female">
+                            <label for="female">Female</label>
+                            <input type="radio" id="male" name="gender" value="male">
+                            <label for="male">Male</label>
+                        </div>
+                        <div id="gender-error" class="error-msg"></div>
+                        <button type="button" class="submit" onclick="handleSignUp()">Sign Up Now</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="main-page">
+            <div class="topbar">
+                <button id="logoutBtn" class="logout-btn" style="display: none; top: 10px;">Logout</button>
+            </div>
+
+            <div class="private-messages-bar" id="privateMessagesBar" class="coloredContainer">
+                <div class="private-messages-filters">
+                    <input type="radio" id="allMessages" name="pmFilter" checked>
+                    <label for="allMessages">All</label>
+                    <input type="radio" id="onlineMessages" name="pmFilter">
+                    <label for="onlineMessages">Online</label>
+                    <input type="radio" id="offlineMessages" name="pmFilter">
+                    <label for="offlineMessages">Offline</label>
+                </div>
+                <div class="private-messages-scroll">
+                    <!-- Contacts will be loaded here -->
+                </div>
+            </div>
+
+            <div class="posts" id="postsSection">
+                <div class="posts-toolbar">
+                    <select class="posts-filter">
+                        <option value="all">All Posts</option>
+                    </select>
+                    <button class="add-post-btn">+</button>
+                </div>
+                <div class="posts-scroll">
+                </div>
+            </div>
+
+            <div class="private-chat" id="privateChatSection">
+                <div class="chat-header">
+                    <div class="chat-contact-info">
+                        <div class="chat-contact-avatar">
+                            <div class="chat-avatar" id="chatContactAvatar">
+                                <!-- Will dynamically update to show avatar or default -->
+                            </div>
+                        </div>
+                        <div class="chat-contact-name" id="chatContactName">Contact Name</div>
+                    </div>
+                    <button id="closeChatBtn" class="close-btn">×</button>
+                </div>
+
+                <div id="chatMessages" class="chat-messages">
+                    <!-- Messages will be loaded here dynamically -->
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="chat-input-wrapper">
+                        <textarea id="chatMessageInput" placeholder="Type a message..." rows="1"></textarea>
+                        <button id="emojiButton" class="emoji-btn" type="button" disabled>😊</button>
+                        <button id="sendMessageBtn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="emojiPicker" class="emoji-picker"></div>
+                </div>
+            </div>
+
+            <div class="profile" id="userProfile">Profile</div>
+            <div class="notification-panel" class="coloredContainer">
+                <div class="welcome-message">
+                    <h2>👋🎉 Welcome to Our Real-Time Forum! 💬🌐</h2>
+                    <p>
+                        We're super excited to have you here! 🙌 This is your space to jump into 🔥 live discussions,
+                        share your thoughts 💡, and connect with amazing people from all around the world 🌍.
+                    </p>
+                    <p>
+                        <strong>🚀</strong> You’ll be able to <em>chat privately 💌</em> with others —
+                        perfect for deep dives, quick questions, or just saying hi 👋 one-on-one!
+                    </p>
+                    <p>
+                        So get comfy 🪑, join the convo 🗣️, and help shape the future of our community 💖.
+                        We’re glad you’re here! 😊
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <script type="module" src="assets/js/background.js"></script>
+    <script type="module" src="assets/js/utils.js" defer></script>
+    <script type="module" src="assets/js/mainPageAnimation.js" defer></script>
+    <script type="module" src="assets/js/contacts.js" defer></script>
+    <script type="module" src="assets/js/auth.js" defer></script>
+    <script type="module" src="assets/js/posts.js" defer></script>
+    <script type="module" src="assets/js/comments.js" defer></script>
+    <script type="module" src="assets/js/profile.js" defer></script>
+    <script type="module" src="assets/js/emojiPicker.js" defer></script>
+    <script type="module" src="assets/js/private_chat.js" defer></script>
+    <!-- <script type="module" src="assets/js/notifications.js" defer></script> -->
+
+    <script>
+        function scrollToBottom() {
+            const chatMessages = document.getElementById("chatMessages");
+            if (chatMessages) {
+                // Use multiple methods to ensure scrolling works
+                requestAnimationFrame(() => {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                    // Fallback method
+                    setTimeout(() => {
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }, 50);
+                });
+            }
+        }
+
+        // Enhanced checkScroll function
+        function checkScroll() {
+            const chatMessages = document.getElementById("chatMessages");
+            if (chatMessages) {
+                console.log('Scroll height:', chatMessages.scrollHeight);
+                console.log('Client height:', chatMessages.clientHeight);
+                console.log('Scroll top:', chatMessages.scrollTop);
+                console.log('Can scroll:', chatMessages.scrollHeight > chatMessages.clientHeight);
+                console.log('Messages container height:', chatMessages.offsetHeight);
+            }
+        }
+
+        // Test function to add dummy messages for scrolling test
+        function addTestMessages() {
+            const chatMessages = document.getElementById("chatMessages");
+            if (!chatMessages) return;
+
+            for (let i = 0; i < 20; i++) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${i % 2 === 0 ? 'message-own' : 'message-theirs'}`;
+                messageDiv.innerHTML = `
+            <div class="message-content">
+                <div class="message-header">
+                    <span class="message-sender">${i % 2 === 0 ? 'You' : 'Other User'}</span>
+                    <span class="message-time">12:00</span>
+                </div>
+                <div class="message-text">Test message ${i + 1}</div>
+            </div>
+            <div class="message-avatar">
+                <div class="default-avatar">👤</div>
+            </div>
+        `;
+                chatMessages.appendChild(messageDiv);
+            }
+
+            scrollToBottom();
+            setTimeout(checkScroll, 100);
+        }
+    </script>
+</body>
+
+</html>

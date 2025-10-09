@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - Realtime Forum</title>
+
+    <link rel="stylesheet" href="./assets/css/background.css">
+    <link rel="stylesheet" href="./assets/css/errPage.css">
+    <link rel="icon" type="image/png" href="./assets/img/logo.png">
+
+
+</head>
+
+<body>
+    <div class="galaxy-container" id="galaxy"></div>
+    <div class="error-container">
+        <div class="error-icon">⚠️</div>
+        <h1 class="error-title" id="errorTitle">Something went wrong</h1>
+        <p class="error-message" id="errorMessage">
+            We're sorry, but something unexpected happened. Please try again later.
+        </p>
+        <button class="home-button" onclick="goHome()">Go Back Home</button>
+        <div class="error-code" id="errorCode"></div>
+    </div>
+
+    <script type="module" src="assets/js/background.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const status = urlParams.get('status') || '500';
+        const message = urlParams.get('message') || 'Internal server error';
+
+        document.getElementById('errorTitle').textContent = `${status} Error`;
+        document.getElementById('errorMessage').textContent = message;
+        document.getElementById('errorCode').textContent = `Error code: ${status}`;
+
+        function goHome() {
+            window.location.href = '/';
+        }
+
+        setTimeout(goHome, 10000);
+    </script>
+</body>
+
+</html>
