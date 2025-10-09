@@ -126,3 +126,31 @@ CREATE TABLE IF NOT EXISTS user_activity (
 CREATE INDEX IF NOT EXISTS idx_private_messages_users ON private_messages(from_user_id, to_user_id);
 CREATE INDEX IF NOT EXISTS idx_private_messages_created_at ON private_messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_private_messages_read ON private_messages(is_read, to_user_id);
+
+
+/**************************************
+ *  UNREAD MESSAGE TRACKING SYSTEM
+ **************************************/
+
+-- -- Table to track unread message counts per conversation
+-- CREATE TABLE IF NOT EXISTS unread_message_counts (
+--     id INTEGER PRIMARY KEY AUTOINCREMENT,
+--     user_id INTEGER NOT NULL,
+--     other_user_id INTEGER NOT NULL,
+--     unread_count INTEGER DEFAULT 0,
+--     last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+--     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+--     FOREIGN KEY (other_user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+--     UNIQUE(user_id, other_user_id)
+-- );
+
+-- -- Table to track when users last read a conversation
+-- CREATE TABLE IF NOT EXISTS conversation_read_times (
+--     id INTEGER PRIMARY KEY AUTOINCREMENT,
+--     user_id INTEGER NOT NULL,
+--     other_user_id INTEGER NOT NULL,
+--     last_read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+--     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+--     FOREIGN KEY (other_user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+--     UNIQUE(user_id, other_user_id)
+-- );

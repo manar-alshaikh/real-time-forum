@@ -47,6 +47,9 @@ func main() {
 	mux.HandleFunc("/api/private-messages/send", handlers.SendPrivateMessageHandler)
 	mux.HandleFunc("/api/typing/start", handlers.StartTypingHandler)
 	mux.HandleFunc("/api/typing/stop", handlers.StopTypingHandler)
+	// mux.HandleFunc("/api/unread-counts", handlers.GetUnreadCountsHandler)
+	// mux.HandleFunc("/api/mark-messages-read", handlers.MarkMessagesReadHandler)
+	// mux.HandleFunc("/api/increment-unread-count", handlers.IncrementUnreadCountHandler)
 
 	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("./frontend/assets"))))
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./frontend/assets/uploads"))))

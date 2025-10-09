@@ -23,51 +23,50 @@ class PrivateChatManager {
         this.emojiPicker = new EmojiPicker();
         this.isInitialized = false;
 
-         this.waitForContactsManager();
+        this.waitForContactsManager();
     }
 
-async waitForContactsManager() {
-    console.log('PrivateChatManager waiting for ContactsManager...');
-    
-    return new Promise((resolve) => {
-        const eventHandler = (event) => {
-            this.currentUserId = event.detail.currentUserId;
-            console.log('✅ PrivateChatManager received user ID via event:', this.currentUserId);
-            document.removeEventListener('contactsManagerReady', eventHandler);
-            this.init();
-            resolve();
-        };
-        
-        // Listen for the ready event
-        document.addEventListener('contactsManagerReady', eventHandler);
-        
-        // Fallback: Check every 100ms for 5 seconds
-        let attempts = 0;
-        const fallbackCheck = setInterval(() => {
-            attempts++;
-            if (window.contactsManager && window.contactsManager.currentUserId) {
-                clearInterval(fallbackCheck);
-                this.currentUserId = window.contactsManager.currentUserId;
-                console.log('✅ PrivateChatManager fallback - got user ID:', this.currentUserId);
+    async waitForContactsManager() {
+        console.log('PrivateChatManager waiting for ContactsManager...');
+
+        return new Promise((resolve) => {
+            const eventHandler = (event) => {
+                this.currentUserId = event.detail.currentUserId;
+                console.log('✅ PrivateChatManager received user ID via event:', this.currentUserId);
+                document.removeEventListener('contactsManagerReady', eventHandler);
                 this.init();
                 resolve();
-            } else if (attempts > 50) {
-                clearInterval(fallbackCheck);
-                console.error('❌ Timeout waiting for ContactsManager');
-                resolve();
-            }
-        }, 100);
-    });
-}
+            };
+
+            // Listen for the ready event
+            document.addEventListener('contactsManagerReady', eventHandler);
+
+            // Fallback: Check every 100ms for 5 seconds
+            let attempts = 0;
+            const fallbackCheck = setInterval(() => {
+                attempts++;
+                if (window.contactsManager && window.contactsManager.currentUserId) {
+                    clearInterval(fallbackCheck);
+                    this.currentUserId = window.contactsManager.currentUserId;
+                    console.log('✅ PrivateChatManager fallback - got user ID:', this.currentUserId);
+                    this.init();
+                    resolve();
+                } else if (attempts > 50) {
+                    clearInterval(fallbackCheck);
+                    console.error('❌ Timeout waiting for ContactsManager');
+                    resolve();
+                }
+            }, 100);
+        });
+    }
 
     init() {
         console.log('PrivateChatManager initializing...');
-        // this.setCurrentUserId();
         this.setupEventListeners();
         this.setupWebSocketHandlers();
         this.setupScrollListener();
         this.setupEmojiPicker();
-         this.isInitialized = true;
+        this.isInitialized = true;
     }
 
     setupEventListeners() {
@@ -145,66 +144,64 @@ async waitForContactsManager() {
         this.handleUserInputActivity();
     }
 
-handleUserInputActivity() {
-    if (!this.currentChat || !this.currentChat.is_online) return;
+    handleUserInputActivity() {
+        if (!this.currentChat || !this.currentChat.is_online) return;
 
-    // Clear existing timeouts
-    if (this.typingActivationTimeout) {
-        clearTimeout(this.typingActivationTimeout);
-    }
-    if (this.typingInactivityTimeout) {
-        clearTimeout(this.typingInactivityTimeout);
-    }
-
-    // Start typing immediately on first input
-    if (!this.isCurrentlyTyping) {
-        this.handleTypingStart();
-    }
-
-    // Reset the inactivity timer
-    this.typingInactivityTimeout = setTimeout(() => {
-        this.handleTypingStop();
-    }, 1000); // Stop typing after 1 second of inactivity
-}
-
-handleTypingStart() {
-    if (this.isCurrentlyTyping) return;
-
-    this.isCurrentlyTyping = true;
-    
-    // Send typing start immediately
-    apiPost('/api/typing/start', { to_user_id: this.currentChat.user_id })
-        .catch(error => console.error('Failed to send typing start:', error));
-    
-    // Also send a periodic typing indicator every 3 seconds while user is typing
-    this.typingKeepAliveInterval = setInterval(() => {
-        if (this.isCurrentlyTyping) {
-            apiPost('/api/typing/start', { to_user_id: this.currentChat.user_id })
-                .catch(error => console.error('Failed to send typing keep-alive:', error));
+        // Clear existing timeouts
+        if (this.typingActivationTimeout) {
+            clearTimeout(this.typingActivationTimeout);
         }
-    }, 3000);
-}
+        if (this.typingInactivityTimeout) {
+            clearTimeout(this.typingInactivityTimeout);
+        }
 
-handleTypingStop() {
-    if (this.typingActivationTimeout) {
-        clearTimeout(this.typingActivationTimeout);
-        this.typingActivationTimeout = null;
-    }
-    if (this.typingInactivityTimeout) {
-        clearTimeout(this.typingInactivityTimeout);
-        this.typingInactivityTimeout = null;
-    }
-    if (this.typingKeepAliveInterval) {
-        clearInterval(this.typingKeepAliveInterval);
-        this.typingKeepAliveInterval = null;
+        // Start typing immediately on first input
+        if (!this.isCurrentlyTyping) {
+            this.handleTypingStart();
+        }
+
+        // Reset the inactivity timer
+        this.typingInactivityTimeout = setTimeout(() => {
+            this.handleTypingStop();
+        }, 1000);
     }
 
-    if (this.isCurrentlyTyping) {
-        this.isCurrentlyTyping = false;
-        apiPost('/api/typing/stop', { to_user_id: this.currentChat.user_id })
-            .catch(error => console.error('Failed to send typing stop:', error));
+    handleTypingStart() {
+        if (this.isCurrentlyTyping) return;
+
+        this.isCurrentlyTyping = true;
+
+        apiPost('/api/typing/start', { to_user_id: this.currentChat.user_id })
+            .catch(error => console.error('Failed to send typing start:', error));
+
+        this.typingKeepAliveInterval = setInterval(() => {
+            if (this.isCurrentlyTyping) {
+                apiPost('/api/typing/start', { to_user_id: this.currentChat.user_id })
+                    .catch(error => console.error('Failed to send typing keep-alive:', error));
+            }
+        }, 3000);
     }
-}
+
+    handleTypingStop() {
+        if (this.typingActivationTimeout) {
+            clearTimeout(this.typingActivationTimeout);
+            this.typingActivationTimeout = null;
+        }
+        if (this.typingInactivityTimeout) {
+            clearTimeout(this.typingInactivityTimeout);
+            this.typingInactivityTimeout = null;
+        }
+        if (this.typingKeepAliveInterval) {
+            clearInterval(this.typingKeepAliveInterval);
+            this.typingKeepAliveInterval = null;
+        }
+
+        if (this.isCurrentlyTyping) {
+            this.isCurrentlyTyping = false;
+            apiPost('/api/typing/stop', { to_user_id: this.currentChat.user_id })
+                .catch(error => console.error('Failed to send typing stop:', error));
+        }
+    }
 
     setupScrollListener() {
         const chatMessages = $('#chatMessages');
@@ -383,8 +380,7 @@ handleTypingStop() {
                 const data = JSON.parse(event.data);
                 switch (data.type) {
                     case 'new_private_message':
-                        // QUICK FIX: Ignore our own messages from WebSocket to prevent duplicates
-                            this.handleNewMessage(data.data);
+                        this.handleNewMessage(data.data);
                         break;
                     case 'user_typing':
                         this.handleUserTyping(data.data);
@@ -410,6 +406,10 @@ handleTypingStop() {
         this.updateChatHeader(contact);
         this.clearMessages();
         this.showLoadingIndicator();
+
+        if (window.privateChatNotifications) {
+            window.privateChatNotifications.handleChatOpened(contact.user_id);
+        }
 
         await this.loadInitialMessages();
         this.hideLoadingIndicator();
@@ -485,24 +485,23 @@ handleTypingStop() {
         this.scrollToBottom();
     }
 
-createMessageElement(message) {
-    const messageDiv = document.createElement('div');
-    const isOwnMessage = message.from_user_id === this.currentUserId;
+    createMessageElement(message) {
+        const messageDiv = document.createElement('div');
+        const isOwnMessage = message.from_user_id === this.currentUserId;
 
-    messageDiv.className = `message ${isOwnMessage ? 'message-own' : 'message-theirs'}`;
-    messageDiv.dataset.messageId = message.id;
+        messageDiv.className = `message ${isOwnMessage ? 'message-own' : 'message-theirs'}`;
+        messageDiv.dataset.messageId = message.id;
 
-    const messageTime = this.formatTime(message.created_at);
-    const senderName = message.username || 'Unknown User';
-    
-    // Get user initial for default avatar
-    const getUserInitial = (name) => {
-        if (!name) return '?';
-        return name.charAt(0).toUpperCase();
-    };
+        const messageTime = this.formatTime(message.created_at);
+        const senderName = message.username || 'Unknown User';
 
-    if (isOwnMessage) {
-        messageDiv.innerHTML = `
+        const getUserInitial = (name) => {
+            if (!name) return '?';
+            return name.charAt(0).toUpperCase();
+        };
+
+        if (isOwnMessage) {
+            messageDiv.innerHTML = `
             <div class="message-avatar">
                 ${message.profile_picture ?
                     `<img src="${escapeHTML(message.profile_picture)}" alt="You">` :
@@ -517,8 +516,8 @@ createMessageElement(message) {
                 <div class="message-text">${escapeHTML(message.content)}</div>
             </div>
         `;
-    } else {
-        messageDiv.innerHTML = `
+        } else {
+            messageDiv.innerHTML = `
             <div class="message-avatar">
                 ${message.profile_picture ?
                     `<img src="${escapeHTML(message.profile_picture)}" alt="${escapeHTML(senderName)}">` :
@@ -533,72 +532,75 @@ createMessageElement(message) {
                 <div class="message-text">${escapeHTML(message.content)}</div>
             </div>
         `;
-    }
-
-    return messageDiv;
-}
-
-    async sendMessage() {
-        const messageInput = $('#chatMessageInput');
-        if (!messageInput || !this.currentChat) return;
-
-        if (!this.currentChat.is_online) {
-            alert('Cannot send message: User is offline');
-            return;
         }
 
-        const content = messageInput.value.trim();
-        if (!content) return;
+        return messageDiv;
+    }
 
-        this.handleTypingStop();
+async sendMessage() {
+    const messageInput = $('#chatMessageInput');
+    if (!messageInput || !this.currentChat) return;
 
-        const tempMessage = {
-            id: Date.now(),
-            from_user_id: this.currentUserId,
+    if (!this.currentChat.is_online) {
+        alert('Cannot send message: User is offline');
+        return;
+    }
+
+    const content = messageInput.value.trim();
+    if (!content) return;
+
+    this.handleTypingStop();
+
+    const tempMessage = {
+        id: Date.now(),
+        from_user_id: this.currentUserId,
+        to_user_id: this.currentChat.user_id,
+        content: content,
+        message_type: 'text',
+        is_read: true,
+        created_at: new Date().toISOString(),
+        username: 'You'
+    };
+
+    this.pendingMessageIds.add(tempMessage.id);
+
+    // Add the temporary message immediately for the sender
+    this.appendNewMessage(tempMessage);
+    messageInput.value = '';
+    this.resizeTextarea(messageInput);
+    this.scrollToBottom();
+
+    try {
+        const data = await apiPost('/api/private-messages/send', {
             to_user_id: this.currentChat.user_id,
             content: content,
-            message_type: 'text',
-            is_read: true,
-            created_at: new Date().toISOString(),
-            username: 'You'
-        };
+            message_type: 'text'
+        });
 
-        // Add the temporary message ID to pending set immediately
-        this.pendingMessageIds.add(tempMessage.id);
-
-        this.appendNewMessage(tempMessage);
-        messageInput.value = '';
-        this.resizeTextarea(messageInput);
-        this.scrollToBottom();
-
-        try {
-            const data = await apiPost('/api/private-messages/send', {
-                to_user_id: this.currentChat.user_id,
-                content: content,
-                message_type: 'text'
-            });
-
-            if (data?.success && data.message) {
-                // Remove the temporary message immediately since we'll get it from WebSocket
-                this.pendingMessageIds.delete(tempMessage.id);
-                this.removeMessageById(tempMessage.id);
-
-                // Add the real message ID to pending set to prevent WebSocket duplication
-                this.pendingMessageIds.add(data.message.id);
-
-                // Don't add the message here - wait for WebSocket to deliver it
-                // This ensures consistent behavior for all messages
-            } else {
-                throw new Error('Failed to send message');
-            }
-        } catch (error) {
-            console.error('Error sending message:', error);
-            // Remove the temporary message and its ID from pending set
+        if (data?.success && data.message) {
+            // Replace the temporary message with the real one from the server
             this.pendingMessageIds.delete(tempMessage.id);
-            this.removeMessageById(tempMessage.id);
-            alert('Failed to send message. Please try again.');
+            this.replaceTempMessage(tempMessage.id, data.message);
+            this.pendingMessageIds.add(data.message.id);
+            
+            // Update the contact order for the sender as well
+            if (window.contactsManager) {
+                window.contactsManager.updateContactOrderAfterMessage(
+                    this.currentChat.user_id,
+                    data.message.created_at
+                );
+            }
+        } else {
+            throw new Error('Failed to send message');
         }
+    } catch (error) {
+        console.error('Error sending message:', error);
+        // Remove the temporary message if sending failed
+        this.pendingMessageIds.delete(tempMessage.id);
+        this.removeMessageById(tempMessage.id);
+        alert('Failed to send message. Please try again.');
     }
+}
 
     appendNewMessage(message) {
         const chatMessages = $('#chatMessages');
@@ -611,21 +613,25 @@ createMessageElement(message) {
         this.scrollToBottom();
     }
 
-    replaceTempMessage(tempId, realMessage) {
-        const chatMessages = $('#chatMessages');
-        if (!chatMessages) return;
+replaceTempMessage(tempId, realMessage) {
+    const chatMessages = $('#chatMessages');
+    if (!chatMessages) return;
 
-        const tempElement = chatMessages.querySelector(`[data-message-id="${tempId}"]`);
-        if (tempElement) {
-            const newElement = this.createMessageElement(realMessage);
-            tempElement.replaceWith(newElement);
-        }
-
-        const messageIndex = this.messages.findIndex(m => m.id === tempId);
-        if (messageIndex !== -1) {
-            this.messages[messageIndex] = realMessage;
-        }
+    const tempElement = chatMessages.querySelector(`[data-message-id="${tempId}"]`);
+    if (tempElement) {
+        const newElement = this.createMessageElement(realMessage);
+        tempElement.replaceWith(newElement);
     }
+
+    // Update the messages array
+    const messageIndex = this.messages.findIndex(m => m.id === tempId);
+    if (messageIndex !== -1) {
+        this.messages[messageIndex] = realMessage;
+    } else {
+        // If temp message not found, add the real message
+        this.messages.push(realMessage);
+    }
+}
 
     removeMessageById(messageId) {
         const chatMessages = $('#chatMessages');
@@ -639,41 +645,53 @@ createMessageElement(message) {
         this.messages = this.messages.filter(m => m.id !== messageId);
     }
 
-    handleNewMessage(message) {
-        if (!this.currentChat ||
-            (message.from_user_id !== this.currentChat.user_id && message.to_user_id !== this.currentChat.user_id)) {
-            return;
-        }
+handleNewMessage(messageData) {
+    // Check if this message is relevant to our current chat
+    const isRelevantToCurrentChat = this.currentChat && 
+        (messageData.from_user_id === this.currentChat.user_id || 
+         messageData.to_user_id === this.currentChat.user_id);
+    
+    // Check if this is our own message (we sent it)
+    const isOwnMessage = messageData.from_user_id === this.currentUserId;
+    
+    const isPending = this.pendingMessageIds.has(messageData.id);
+    const messageExists = this.messages.some(msg => msg.id === messageData.id);
 
-        // If this is our own message coming from WebSocket, check if we already processed it
-        const isOwnMessage = message.from_user_id === this.currentUserId;
-
-        // Check if this is a pending message (we've already handled it via API response)
-        const isPending = this.pendingMessageIds.has(message.id);
-
-        // Check if message already exists in our local messages
-        const messageExists = this.messages.some(msg => msg.id === message.id);
-
-        if (isPending) {
-            // Remove from pending set and don't display - we've already handled this message
-            this.pendingMessageIds.delete(message.id);
-            return;
-        }
-
-        if (messageExists) {
-            // Message already exists, don't add it again
-            return;
-        }
-
-        this.appendNewMessage(message);
-
-        if (window.contactsManager && message.from_user_id !== this.currentUserId) {
-            window.contactsManager.updateContactOrderAfterMessage(
-                message.from_user_id,
-                message.created_at
-            );
-        }
+    if (isPending) {
+        this.pendingMessageIds.delete(messageData.id);
+        return;
     }
+
+    if (messageExists) {
+        return;
+    }
+
+    // Only add the message if:
+    // 1. It's relevant to our current chat AND we didn't send it (recipient case)
+    // OR
+    // 2. We sent it but it's not in our current messages yet (sender case - fallback)
+    if (isRelevantToCurrentChat && !isOwnMessage) {
+        this.appendNewMessage(messageData);
+        
+        // Show notification for new messages FROM other users (we are the recipient)
+        if (window.privateChatNotifications) {
+            console.log('📱 Private chat manager forwarding message to notifications');
+            window.privateChatNotifications.handleNewMessage(messageData);
+        }
+    } else if (isOwnMessage && !this.messages.some(msg => msg.id === messageData.id)) {
+        // Fallback: If we sent this message but it's not in our list, add it
+        // This can happen if the WebSocket message comes through for some reason
+        this.appendNewMessage(messageData);
+    }
+
+    // Update contact order for messages from other users
+    if (window.contactsManager && messageData.from_user_id !== this.currentUserId) {
+        window.contactsManager.updateContactOrderAfterMessage(
+            messageData.from_user_id,
+            messageData.created_at
+        );
+    }
+}
 
     updateInputFieldStatus(isOnline) {
         const messageInput = $('#chatMessageInput');
@@ -692,7 +710,7 @@ createMessageElement(message) {
                 messageInput.placeholder = "User is offline - cannot send messages";
                 sendButton.disabled = true;
                 messageInput.style.backgroundColor = '#000000ff';
-                 messageInput.style.color = '#e6ebf3';
+                messageInput.style.color = '#e6ebf3';
                 sendButton.style.opacity = '0.6';
             }
         }
@@ -756,25 +774,24 @@ createMessageElement(message) {
         this.renderTypingIndicator();
     }
 
-renderTypingIndicator() {
-    const chatMessages = $('#chatMessages');
-    if (!chatMessages) return;
+    renderTypingIndicator() {
+        const chatMessages = $('#chatMessages');
+        if (!chatMessages) return;
 
-    const existingIndicator = chatMessages.querySelector('.typing-indicator');
-    if (existingIndicator) existingIndicator.remove();
+        const existingIndicator = chatMessages.querySelector('.typing-indicator');
+        if (existingIndicator) existingIndicator.remove();
 
-    if (this.typingUsers.size > 0 && this.currentChat?.is_online) {
-        const typingNames = Array.from(this.typingUsers).join(', ');
-        
-        // Get user initial for default avatar
-        const getUserInitial = (name) => {
-            if (!name) return '?';
-            return name.charAt(0).toUpperCase();
-        };
+        if (this.typingUsers.size > 0 && this.currentChat?.is_online) {
+            const typingNames = Array.from(this.typingUsers).join(', ');
 
-        const indicator = document.createElement('div');
-        indicator.className = 'typing-indicator message-theirs';
-        indicator.innerHTML = `
+            const getUserInitial = (name) => {
+                if (!name) return '?';
+                return name.charAt(0).toUpperCase();
+            };
+
+            const indicator = document.createElement('div');
+            indicator.className = 'typing-indicator message-theirs';
+            indicator.innerHTML = `
             <div class="message-avatar">
                 ${this.currentChat.profile_picture ?
                     `<img src="${escapeHTML(this.currentChat.profile_picture)}" alt="${escapeHTML(this.currentChat.username)}">` :
@@ -789,10 +806,10 @@ renderTypingIndicator() {
                 </div>
             </div>
         `;
-        chatMessages.appendChild(indicator);
-        this.scrollToBottom();
+            chatMessages.appendChild(indicator);
+            this.scrollToBottom();
+        }
     }
-}
 
     scrollToBottom() {
         const chatMessages = $('#chatMessages');
@@ -911,4 +928,4 @@ renderTypingIndicator() {
 }
 
 const privateChatManager = new PrivateChatManager();
-export default privateChatManager;
+export default privateChatManager;       

@@ -219,7 +219,7 @@ func SendPrivateMessageHandler(w http.ResponseWriter, r *http.Request) {
 		"message": sentMessage,
 	})
 
-	EmitToUser(req.ToUserID, "new_private_message", sentMessage)
+	// EmitToUser(req.ToUserID, "new_private_message", sentMessage)
 
 }
 
@@ -291,6 +291,6 @@ func EmitToUser(userID int, eventType string, data interface{}) {
 	// You'll need to implement user-specific broadcasting in your hub
 	// For now, we'll use the existing broadcast
 	if realtimeHub != nil {
-		realtimeHub.Broadcast <- msg
+		 realtimeHub.SendToUser(userID, msg)
 	}
 }
