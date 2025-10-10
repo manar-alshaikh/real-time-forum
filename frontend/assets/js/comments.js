@@ -63,8 +63,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const commentId = parseInt(btn.dataset.id, 10);
     const type = btn.dataset.type; 
 
-    console.log("Comment reaction clicked:", { commentId, type });
-
     const row = btn.closest(".comment-row");
     const likeBtn = row.querySelector(".comment-like-btn");
     const dislikeBtn = row.querySelector(".comment-dislike-btn");
@@ -97,9 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     
     try {
-      console.log("Sending reaction to server...");
       const res = await apiPost(`/api/comments/${commentId}/react`, { type });
-      console.log("Server response:", res);
       if (res && res.success && res.data) {
         apply(res.data.userReaction, res.data.likes, res.data.dislikes);
       }

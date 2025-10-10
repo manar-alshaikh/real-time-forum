@@ -457,10 +457,8 @@ function showLoggedInState(username) {
 
     setTimeout(() => {
         if (window.contactsManager) {
-            console.log('🔄 Refreshing contacts after login...');
             window.contactsManager.initializeUserAndContacts();
         } else {
-            console.log('⚠️ Contacts manager not available yet, waiting...');
             setTimeout(() => {
                 if (window.contactsManager) {
                     window.contactsManager.initializeUserAndContacts();

@@ -193,7 +193,6 @@ class PrivateChatNotifications {
         
         if (window.contactsManager && window.contactsManager.activeChat) {
             const isSameUser = window.contactsManager.activeChat.user_id === userId;
-            console.log(`Chat with user ${userId} is ${isSameUser ? 'OPEN' : 'NOT OPEN'}`);
             return isSameUser;
         }
         
@@ -222,7 +221,6 @@ class PrivateChatNotifications {
     updateCounterBadge(userId) {
         const contactElement = $(`.contact[data-user-id="${userId}"]`);
         if (!contactElement) {
-            console.log('Contact element not found for user:', userId, 'retrying...');
             setTimeout(() => this.updateCounterBadge(userId), 500);
             return;
         }
@@ -247,7 +245,6 @@ class PrivateChatNotifications {
             counter.textContent = unreadCount > 99 ? '99+' : unreadCount.toString();
             contactElement.style.position = 'relative';
             contactElement.appendChild(counter);
-            console.log('✅ Counter badge updated for user:', userId, 'Count:', unreadCount);
         }
     }
 
@@ -259,13 +256,11 @@ class PrivateChatNotifications {
         const existingCounter = contactElement.querySelector('.unread-counter');
         if (existingCounter) {
             existingCounter.remove();
-            console.log('✅ Counter badge removed from contact:', userId);
         }
     }
 
     
     refreshAllCounterBadges() {
-        console.log('🔄 Refreshing all counter badges...');
         this.unreadCounts.forEach((count, userId) => {
             if (count > 0) {
                 this.updateCounterBadge(userId);
@@ -318,15 +313,10 @@ repositionAllNotifications() {
 showNotification(messageData) {
     const { from_user_id, username, content, profile_picture } = messageData;
 
-    console.log('🎯 Checking if should show notification for message from:', username);
-
     
     if (this.isChatOpenWithUser(from_user_id)) {
-        console.log('❌ Chat is open with this user, skipping notification');
         return;
     }
-
-    console.log('✅ Showing notification for message from:', username);
 
     
     const newCount = this.incrementUnreadCount(from_user_id);
@@ -430,29 +420,20 @@ closeNotification(notificationId) {
 
     
     handleNewMessage(messageData) {
-        console.log('🔔 Notification system received message:', messageData);
         
         
         const isRecipient = messageData.to_user_id === window.contactsManager.currentUserId;
         const isNotOurMessage = messageData.from_user_id !== window.contactsManager.currentUserId;
         
         if (isRecipient && isNotOurMessage) {
-            console.log('✅ This is a message TO us from someone else, showing notification');
             this.showNotification(messageData);
-        } else {
-            console.log('❌ Ignoring message - we are sender or not the recipient');
         }
     }
 
     
-    handleChatOpened(userId) {
-        console.log('💬 Chat opened with user:', userId);
-        
-        
+    handleChatOpened(userId) {        
         this.resetUnreadCount(userId);
-        this.removeCounterBadge(userId);
-        
-        
+        this.removeCounterBadge(userId);   
         this.closeAllNotificationsForUser(userId);
     }
 

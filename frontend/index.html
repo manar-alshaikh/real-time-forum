@@ -16,9 +16,9 @@
             padding: 0px;
             margin: 0px;
             background: #41443f;
-            /* Same dark background */
+            
             color: #e6ebf3;
-            /* Light text color */
+            
             border-top: 1px solid #e9ecef;
         }
 
@@ -188,7 +188,7 @@
             -moz-appearance: none;
 
             background-color: #b3b0b2;
-            /* pastel pink */
+            
             border-radius: 12px;
             padding: 10px 42px 10px 16px;
             font-size: 15px;
@@ -409,11 +409,8 @@
         function scrollToBottom() {
             const chatMessages = document.getElementById("chatMessages");
             if (chatMessages) {
-                // Use multiple methods to ensure scrolling works
                 requestAnimationFrame(() => {
                     chatMessages.scrollTop = chatMessages.scrollHeight;
-
-                    // Fallback method
                     setTimeout(() => {
                         chatMessages.scrollTop = chatMessages.scrollHeight;
                     }, 50);
@@ -421,7 +418,6 @@
             }
         }
 
-        // Enhanced checkScroll function
         function checkScroll() {
             const chatMessages = document.getElementById("chatMessages");
             if (chatMessages) {
@@ -433,7 +429,6 @@
             }
         }
 
-        // Test function to add dummy messages for scrolling test
         function addTestMessages() {
             const chatMessages = document.getElementById("chatMessages");
             if (!chatMessages) return;

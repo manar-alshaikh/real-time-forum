@@ -27,12 +27,10 @@ class PrivateChatManager {
     }
 
     async waitForContactsManager() {
-        console.log('PrivateChatManager waiting for ContactsManager...');
 
         return new Promise((resolve) => {
             const eventHandler = (event) => {
                 this.currentUserId = event.detail.currentUserId;
-                console.log('✅ PrivateChatManager received user ID via event:', this.currentUserId);
                 document.removeEventListener('contactsManagerReady', eventHandler);
                 this.init();
                 resolve();
@@ -48,7 +46,6 @@ class PrivateChatManager {
                 if (window.contactsManager && window.contactsManager.currentUserId) {
                     clearInterval(fallbackCheck);
                     this.currentUserId = window.contactsManager.currentUserId;
-                    console.log('✅ PrivateChatManager fallback - got user ID:', this.currentUserId);
                     this.init();
                     resolve();
                 } else if (attempts > 50) {
@@ -61,7 +58,6 @@ class PrivateChatManager {
     }
 
     init() {
-        console.log('PrivateChatManager initializing...');
         this.setupEventListeners();
         this.setupWebSocketHandlers();
         this.setupScrollListener();
@@ -675,7 +671,6 @@ handleNewMessage(messageData) {
         
         
         if (window.privateChatNotifications) {
-            console.log('📱 Private chat manager forwarding message to notifications');
             window.privateChatNotifications.handleNewMessage(messageData);
         }
     } else if (isOwnMessage && !this.messages.some(msg => msg.id === messageData.id)) {
