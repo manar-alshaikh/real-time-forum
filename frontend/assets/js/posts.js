@@ -1,4 +1,4 @@
-// assets/js/posts.js
+
 import { apiGet, apiPost, $, $$, debounce, throttle, timeAgo } from "./utils.js";
 
 const state = {
@@ -6,7 +6,7 @@ const state = {
   limit: 10,
   loading: false,
   done: false,
-  currentCategory: 0, // 0 = All
+  currentCategory: 0, 
   search: ""
 };
 
@@ -36,7 +36,7 @@ function bootRealtime() {
 
       switch (msg.type) {
         case "post.created":
-          // Re-fetch with current filters; cheap and correct
+          
           resetFeed();
           break;
 
@@ -50,7 +50,7 @@ function bootRealtime() {
       }
     });
 
-    ws.addEventListener("close", () => setTimeout(bootRealtime, 1000)); // simple auto-reconnect
+    ws.addEventListener("close", () => setTimeout(bootRealtime, 1000)); 
   } catch {}
 }
 
@@ -59,7 +59,7 @@ function applyReactionCountsInline(d) {
   if (!id) return;
   const likeBtn = document.querySelector(`.post-card .like-btn[data-id="${id}"]`);
   const dislikeBtn = document.querySelector(`.post-card .dislike-btn[data-id="${id}"]`);
-  if (!likeBtn || !dislikeBtn) return; // card not on current page/filter
+  if (!likeBtn || !dislikeBtn) return; 
 
   const likeCountEl = likeBtn.querySelector(".count");
   const dislikeCountEl = dislikeBtn.querySelector(".count");
@@ -109,7 +109,7 @@ function injectStylesForComposer() {
 function mountToolbar() {
   const postsRoot = $("#postsSection");
   const filterSelect = postsRoot.querySelector(".posts-filter");
-  // filter select will be populated later
+  
   filterSelect.addEventListener("change", () => {
     const v = filterSelect.value;
     state.currentCategory = v.startsWith("cat-") ? parseInt(v.slice(4),10) : 0;
@@ -145,41 +145,41 @@ function mountComposer() {
   const cancelEl   = backdrop.querySelector("#cp-cancel");
   const errorEl    = backdrop.querySelector("#cp-error");
 
-  // --- VALIDATION (single source of truth) ---
+  
   function validateComposer() {
     const title   = (titleEl.value || "").trim();
     const content = (bodyEl.value  || "").trim();
 
-    // NOTE: The :checked selector works even as checkboxes are added/removed
+    
     const anyCatChecked = !!catsWrap.querySelector("input[type='checkbox']:checked");
 
     const ok = title.length >= 3 && content.length >= 5 && anyCatChecked;
     publishEl.disabled = !ok;
   }
 
-  // Listen to ALL relevant changes, including dynamic checkboxes.
-  // We bind high-level listeners so we don't miss anything.
-  const triggerValidate = (/*e*/) => validateComposer();
+  
+  
+  const triggerValidate = () => validateComposer();
 
-  // Input fields
+  
   ["input","change","keyup"].forEach(evt => {
     titleEl.addEventListener(evt, triggerValidate);
     bodyEl.addEventListener(evt, triggerValidate);
   });
 
-  // Any checkbox toggle will bubble a 'change' or 'input' event to catsWrap
+  
   ["change","input","click","keyup"].forEach(evt => {
     catsWrap.addEventListener(evt, triggerValidate);
   });
 
-  // When the category list is injected/updated, re-validate automatically
+  
   new MutationObserver(() => validateComposer())
     .observe(catsWrap, { childList: true, subtree: true });
 
-  // Opening/closing helpers
+  
   function openComposer() {
     backdrop.style.display = "flex";
-    // Run validation once on open in case the user typed something before opening
+    
     validateComposer();
     titleEl.focus();
   }
@@ -188,24 +188,24 @@ function mountComposer() {
     titleEl.value  = "";
     bodyEl.value   = "";
     errorEl.textContent = "";
-    // Uncheck all if any remained
+    
     catsWrap.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = false);
-    // Ensure publish is disabled on fresh open
+    
     publishEl.disabled = true;
   }
 
-  // Wire buttons
+  
   cancelEl.addEventListener("click", closeComposer);
   backdrop.addEventListener("click", (e) => { if (e.target === backdrop) closeComposer(); });
 
-  // --- PUBLISH ---
+  
   async function publish() {
     const title   = titleEl.value.trim();
     const content = bodyEl.value.trim();
     const cats    = [...catsWrap.querySelectorAll("input[type='checkbox']:checked")].map(i => parseInt(i.value,10));
 
     errorEl.textContent = "";
-    publishEl.disabled = true; // prevent double-clicks
+    publishEl.disabled = true; 
 
     try {
       const res = await apiPost("/api/posts", { title, content, categories: cats });
@@ -215,7 +215,7 @@ function mountComposer() {
         return;
       }
       closeComposer();
-      // refresh the feed so the new post appears (and realtime will hit others)
+      
       resetFeed();
     } catch (e) {
       errorEl.textContent = "Network or server error.";
@@ -224,12 +224,12 @@ function mountComposer() {
   }
   publishEl.addEventListener("click", publish);
 
-  // Expose open/close for the "+" button
+  
   window.__openComposer = openComposer;
   window.__closeComposer = closeComposer;
 
-  // Load categories, then validate once they’re in DOM
-  // (This ensures Publish lights up if the user had already filled title/body.)
+  
+  
   loadCategoriesForComposer().then(() => validateComposer());
 }
 
@@ -254,7 +254,7 @@ async function loadCategoriesIntoFilter() {
       filterSelect.appendChild(opt);
     });
   } catch (_) {
-    // ignore, keep only "All Posts"
+    
   }
 }
 
@@ -299,13 +299,13 @@ document.addEventListener("click", async (e) => {
   const btn = e.target.closest(".react-btn");
   if (!btn) return;
   const postId = parseInt(btn.dataset.id, 10);
-  const type = btn.dataset.type; // "like" or "dislike"
+  const type = btn.dataset.type; 
 
   const card = btn.closest(".post-card");
   const likeBtn = card.querySelector(".like-btn");
   const dislikeBtn = card.querySelector(".dislike-btn");
 
-  // Optimistic UI
+  
   const wasLikeActive = likeBtn.classList.contains("is-active");
   const wasDislikeActive = dislikeBtn.classList.contains("is-active");
   const likeCountEl = likeBtn.querySelector(".count");
@@ -320,27 +320,27 @@ document.addEventListener("click", async (e) => {
     dislikeBtn.querySelector(".count").textContent = dislikes;
   };
 
-  // local optimistic math
+  
   let userReaction = (wasLikeActive && type==="like") || (wasDislikeActive && type==="dislike") ? "" : type;
   if (type === "like") {
-    if (wasLikeActive) { likeCount--; }            // toggle off
-    else { likeCount++; if (wasDislikeActive) { dislikeCount--; } } // switch or add
+    if (wasLikeActive) { likeCount--; }            
+    else { likeCount++; if (wasDislikeActive) { dislikeCount--; } } 
   } else {
     if (wasDislikeActive) { dislikeCount--; }
     else { dislikeCount++; if (wasLikeActive) { likeCount--; } }
   }
   apply(userReaction, likeCount, dislikeCount);
 
-  // server sync
+  
   try {
     const res = await apiPost(`/api/posts/${postId}/react`, { type });
     if (res && res.success && res.data) {
       apply(res.data.userReaction, res.data.likes, res.data.dislikes);
     }
   } catch (_) {
-    // on error, do a soft refresh of this card via refetch page chunk (simple path: reload list)
-    // To keep things simple now:
-    // resetFeed(); // (uncomment if you prefer full refresh)
+    
+    
+    
   }
 });
 

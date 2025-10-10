@@ -1972,3 +1972,25 @@ body.logged-in #registration-page {
   color: #888; 
   font-size: 0.9em;
 }
+
+.comment-react-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9aa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.comment-react-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.05);
+}
+
+.comment-react-btn.is-active {
+  color: #4f46e5 !important;
+  font-weight: bold;
+  background: rgba(79, 70, 229, 0.1);
+}

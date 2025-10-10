@@ -468,7 +468,7 @@ function showLoggedInState(username) {
             }, 1000);
         }
     }, 500);
-    // ⭐⭐⭐ END OF ADDED CODE ⭐⭐⭐
+    
 }
 
 function showLoggedOutState() {

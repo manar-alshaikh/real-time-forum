@@ -194,7 +194,7 @@ renderContacts(contacts) {
         this.highlightActiveContact(this.activeChat.user_id);
     }
 
-    // Refresh counter badges after rendering
+    
     if (window.privateChatNotifications) {
         setTimeout(() => {
             window.privateChatNotifications.refreshAllCounterBadges();
@@ -301,17 +301,17 @@ updateContactOrderAfterMessage(userId, timestamp) {
 
     contact.last_message_time = timestamp;
 
-    // Get current contacts and sort them
+    
     const currentContacts = Array.from(this.contacts.values());
     const sortedContacts = this.sortContactsAlphabetically(currentContacts);
 
     const contactsContainer = $('.private-messages-scroll');
     if (!contactsContainer) return;
 
-    // Remove and re-add contacts in sorted order
+    
     const contactElements = Array.from(contactsContainer.querySelectorAll('.contact'));
     
-    // Sort contact elements based on the sorted contacts order
+    
     contactElements.sort((a, b) => {
         const aUserId = parseInt(a.dataset.userId);
         const bUserId = parseInt(b.dataset.userId);
@@ -322,7 +322,7 @@ updateContactOrderAfterMessage(userId, timestamp) {
         return aIndex - bIndex;
     });
 
-    // Re-append in correct order
+    
     contactElements.forEach(element => {
         contactsContainer.appendChild(element);
     });
@@ -356,7 +356,7 @@ setupWebSocketHandlers() {
                     this.initializeUserAndContacts();
                     break;
                 case 'new_private_message':
-                    // ONLY process private messages that are meant for the current user
+                    
                     this.handlePrivateMessageForCurrentUser(data.data);
                     break;
             }
@@ -366,11 +366,11 @@ setupWebSocketHandlers() {
     });
 }
 
-// New method to filter private messages
+
 handlePrivateMessageForCurrentUser(messageData) {
     console.log('🔍 Checking if private message is for current user:', messageData);
     
-    // Check if this message is for the current user (either sender or recipient)
+    
     const isForCurrentUser = 
         messageData.to_user_id === this.currentUserId || 
         messageData.from_user_id === this.currentUserId;
@@ -382,11 +382,11 @@ handlePrivateMessageForCurrentUser(messageData) {
     
     console.log('✅ Private message is for current user, processing...');
     
-    // Always update contact ordering for both sent and received messages
+    
     this.handleNewPrivateMessage(messageData);
     
-    // Forward to notification system ONLY if we are the recipient
-    // This is crucial - only show notifications when we receive messages, not when we send them
+    
+    
     if (window.privateChatNotifications && messageData.to_user_id === this.currentUserId) {
         console.log('📢 Forwarding WebSocket message to notifications (we are recipient)');
         window.privateChatNotifications.handleNewMessage(messageData);
@@ -395,7 +395,7 @@ handlePrivateMessageForCurrentUser(messageData) {
     }
 }
 
-// Make sure this method exists in your class
+
 handleNewPrivateMessage(messageData) {
     console.log('New private message received for contact ordering:', messageData);
 
@@ -591,4 +591,4 @@ document.addEventListener('DOMContentLoaded', () => {
     window.contactsManager = new ContactsManager();
 });
 
-export default ContactsManager;  
+export default ContactsManager;

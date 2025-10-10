@@ -1,7 +1,7 @@
-// assets/js/profile.js
+
 import { $, escapeHTML } from "./utils.js";
 
-// --- Boot ---
+
 document.addEventListener("DOMContentLoaded", () => {
   const slot = $("#userProfile");
   if (!slot) return;
@@ -10,8 +10,8 @@ document.addEventListener("DOMContentLoaded", () => {
   waitForLoginThenLoad(slot);
 });
 
-// Wait until body has 'logged-in' OR try once after a short delay.
-// This avoids the "works only after refresh" issue.
+
+
 function waitForLoginThenLoad(slot) {
   let loaded = false;
 
@@ -21,13 +21,13 @@ function waitForLoginThenLoad(slot) {
     if (ok) loaded = true;
   };
 
-  // If already logged in, load immediately.
+  
   if (document.body.classList.contains("logged-in")) {
     tryLoad();
     return;
   }
 
-  // Observe body class changes (SPA sets logged-in later)
+  
   const obs = new MutationObserver(() => {
     if (document.body.classList.contains("logged-in")) {
       obs.disconnect();
@@ -36,10 +36,10 @@ function waitForLoginThenLoad(slot) {
   });
   obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
 
-  // Also try once shortly (covers cookie timing edge cases)
+  
   setTimeout(tryLoad, 600);
 
-  // If your auth emits a custom event, this will also catch it (harmless if unused)
+  
   window.addEventListener("auth:login", () => tryLoad(), { once: true });
 }
 
@@ -47,10 +47,10 @@ async function loadProfile(slot) {
   try {
     const resp = await fetch("/api/profile", {
       method: "GET",
-      credentials: "include", // IMPORTANT: send cookies
+      credentials: "include", 
       cache: "no-store",
     });
-    if (!resp.ok) return false; // 401 etc. -> not ready yet
+    if (!resp.ok) return false; 
 
     const res = await resp.json();
     if (!res || !res.success || !res.data) return false;
@@ -63,7 +63,7 @@ async function loadProfile(slot) {
   }
 }
 
-// Map various possible keys to your UI fields
+
 function normalizeProfile(raw) {
   const username = (raw.username ?? raw.userName ?? "").toString();
   const age =

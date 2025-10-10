@@ -1,4 +1,3 @@
-// handlers/comments.go
 package handlers
 
 import (
@@ -11,14 +10,15 @@ import (
 )
 
 type commentDTO struct {
-	CommentID int64     `json:"comment_id"`
-	PostID    int64     `json:"post_id"`
-	UserID    int64     `json:"user_id"`
-	Username  string    `json:"username"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
-	Likes     int       `json:"likes"`
-	Dislikes  int       `json:"dislikes"`
+	CommentID  int64     `json:"comment_id"`
+	PostID     int64     `json:"post_id"`
+	UserID     int64     `json:"user_id"`
+	Username   string    `json:"username"`
+	Content    string    `json:"content"`
+	CreatedAt  time.Time `json:"created_at"`
+	Likes      int       `json:"likes"`
+	Dislikes   int       `json:"dislikes"`
+	MyReaction string    `json:"my_reaction,omitempty"`
 }
 
 type createCommentPayload struct {
@@ -26,10 +26,9 @@ type createCommentPayload struct {
 }
 
 type reactPayload struct {
-	Type string `json:"type"` // "like" or "dislike"
+	Type string `json:"type"`
 }
 
-// Fan out /api/posts/{id}/<subresource>
 func PostSubresourceRouter(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/posts/")
 	parts := strings.Split(path, "/")
@@ -43,7 +42,6 @@ func PostSubresourceRouter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No subresource? Let /api/posts GET/POST handle it.
 	if len(parts) == 1 {
 		if r.Method == http.MethodGet || r.Method == http.MethodPost {
 			PostsHandler(w, r)
@@ -119,16 +117,16 @@ func handleCreateComment(w http.ResponseWriter, r *http.Request, postID int64) {
 
 	var createdAt time.Time
 	if err := db.QueryRow(`SELECT created_at FROM comments WHERE comment_id=?`, id).Scan(&createdAt); err != nil {
-    createdAt = time.Now().UTC()
+		createdAt = time.Now().UTC()
 	}
 
 	Emit("comment.created", map[string]any{
-    "comment_id": id,
-    "post_id":    postID,
-    "user_id":    sess.UserID,
-    "username":   username,
-    "content":    content,
-    "created_at": createdAt.UTC().Format(time.RFC3339),
+		"comment_id": id,
+		"post_id":    postID,
+		"user_id":    sess.UserID,
+		"username":   username,
+		"content":    content,
+		"created_at": createdAt.UTC().Format(time.RFC3339),
 	})
 
 	json.NewEncoder(w).Encode(map[string]any{
@@ -139,6 +137,11 @@ func handleCreateComment(w http.ResponseWriter, r *http.Request, postID int64) {
 }
 
 func handleListComments(w http.ResponseWriter, r *http.Request, postID int64) {
+	var userID int64 = 0
+	if sess, err := GetSession(r); err == nil {
+		userID = sess.UserID
+	}
+
 	q := r.URL.Query()
 	limit := toInt(q.Get("limit"), 10)
 	if limit < 1 || limit > 50 {
@@ -152,26 +155,30 @@ func handleListComments(w http.ResponseWriter, r *http.Request, postID int64) {
 		rows, err = db.Query(`
 SELECT c.comment_id, c.post_id, c.user_id, u.username, c.content, c.created_at,
 COALESCE(SUM(CASE WHEN r.type='like' THEN 1 END),0) AS likes,
-COALESCE(SUM(CASE WHEN r.type='dislike' THEN 1 END),0) AS dislikes
+COALESCE(SUM(CASE WHEN r.type='dislike' THEN 1 END),0) AS dislikes,
+ur.type AS my_reaction
 FROM comments c
 JOIN users u ON u.user_id = c.user_id
 LEFT JOIN reactions r ON r.comment_id = c.comment_id
+LEFT JOIN reactions ur ON ur.comment_id = c.comment_id AND ur.user_id = ?
 WHERE c.post_id = ? AND c.comment_id < ?
 GROUP BY c.comment_id
 ORDER BY c.comment_id DESC
-LIMIT ?`, postID, beforeID, limit)
+LIMIT ?`, userID, postID, beforeID, limit)
 	} else {
 		rows, err = db.Query(`
 SELECT c.comment_id, c.post_id, c.user_id, u.username, c.content, c.created_at,
 COALESCE(SUM(CASE WHEN r.type='like' THEN 1 END),0) AS likes,
-COALESCE(SUM(CASE WHEN r.type='dislike' THEN 1 END),0) AS dislikes
+COALESCE(SUM(CASE WHEN r.type='dislike' THEN 1 END),0) AS dislikes,
+ur.type AS my_reaction
 FROM comments c
 JOIN users u ON u.user_id = c.user_id
 LEFT JOIN reactions r ON r.comment_id = c.comment_id
+LEFT JOIN reactions ur ON ur.comment_id = c.comment_id AND ur.user_id = ?
 WHERE c.post_id = ?
 GROUP BY c.comment_id
 ORDER BY c.comment_id DESC
-LIMIT ?`, postID, limit)
+LIMIT ?`, userID, postID, limit)
 	}
 	if err != nil {
 		sendErrorResponse(w, "DB error (list comments)", http.StatusInternalServerError)
@@ -182,9 +189,13 @@ LIMIT ?`, postID, limit)
 	var items []commentDTO
 	for rows.Next() {
 		var c commentDTO
-		if err := rows.Scan(&c.CommentID, &c.PostID, &c.UserID, &c.Username, &c.Content, &c.CreatedAt, &c.Likes, &c.Dislikes); err != nil {
+		var myReaction sql.NullString
+		if err := rows.Scan(&c.CommentID, &c.PostID, &c.UserID, &c.Username, &c.Content, &c.CreatedAt, &c.Likes, &c.Dislikes, &myReaction); err != nil {
 			sendErrorResponse(w, "DB error (scan comment)", http.StatusInternalServerError)
 			return
+		}
+		if myReaction.Valid {
+			c.MyReaction = myReaction.String
 		}
 		items = append(items, c)
 	}
@@ -204,4 +215,146 @@ LIMIT ?`, postID, limit)
 		"nextCursor": nextBefore,
 		"count":      len(items),
 	})
+}
+
+func handleReactComment(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/comments/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		sendErrorResponse(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	commentID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || commentID <= 0 {
+		sendErrorResponse(w, "Invalid comment id", http.StatusBadRequest)
+		return
+	}
+
+	if parts[1] != "react" {
+		sendErrorResponse(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		sendErrorResponse(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	sess, err := GetSession(r)
+	if err != nil {
+		sendErrorResponse(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var p reactPayload
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		sendErrorResponse(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	t := strings.ToLower(strings.TrimSpace(p.Type))
+	if t != "like" && t != "dislike" {
+		sendErrorResponse(w, "type must be 'like' or 'dislike'", http.StatusBadRequest)
+		return
+	}
+
+	var postID int64
+	if err := db.QueryRow(`SELECT post_id FROM comments WHERE comment_id=?`, commentID).Scan(&postID); err != nil {
+		if err == sql.ErrNoRows {
+			sendErrorResponse(w, "Comment not found", http.StatusNotFound)
+			return
+		}
+		sendErrorResponse(w, "DB error", http.StatusInternalServerError)
+		return
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		sendErrorResponse(w, "DB error (begin)", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	var curr string
+	err = tx.QueryRow(`SELECT type FROM reactions WHERE user_id=? AND comment_id=? AND post_id IS NULL`, sess.UserID, commentID).Scan(&curr)
+	if err == sql.ErrNoRows {
+		curr = ""
+	} else if err != nil {
+		sendErrorResponse(w, "DB error (select)", http.StatusInternalServerError)
+		return
+	}
+
+	switch {
+	case curr == "":
+		if _, err := tx.Exec(`INSERT INTO reactions (user_id, post_id, comment_id, type) VALUES (?, NULL, ?, ?)`,
+			sess.UserID, commentID, t); err != nil {
+			sendErrorResponse(w, "DB error (insert)", http.StatusInternalServerError)
+			return
+		}
+	case curr == t:
+		if _, err := tx.Exec(`DELETE FROM reactions WHERE user_id=? AND comment_id=? AND post_id IS NULL`, sess.UserID, commentID); err != nil {
+			sendErrorResponse(w, "DB error (delete)", http.StatusInternalServerError)
+			return
+		}
+		t = ""
+	default:
+		if _, err := tx.Exec(`UPDATE reactions SET type=? WHERE user_id=? AND comment_id=? AND post_id IS NULL`,
+			t, sess.UserID, commentID); err != nil {
+			sendErrorResponse(w, "DB error (update)", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	var likes, dislikes int
+	if err := tx.QueryRow(`
+SELECT 
+  COALESCE(SUM(CASE WHEN type='like' THEN 1 END),0) AS likes,
+  COALESCE(SUM(CASE WHEN type='dislike' THEN 1 END),0) AS dislikes
+FROM reactions WHERE comment_id=? AND post_id IS NULL`, commentID).Scan(&likes, &dislikes); err != nil {
+		sendErrorResponse(w, "DB error (count)", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		sendErrorResponse(w, "DB error (commit)", http.StatusInternalServerError)
+		return
+	}
+
+	Emit("comment.reaction", map[string]any{
+		"comment_id": commentID,
+		"post_id":    postID,
+		"likes":      likes,
+		"dislikes":   dislikes,
+	})
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"data": reactResult{
+			Likes:        likes,
+			Dislikes:     dislikes,
+			UserReaction: t,
+		},
+	})
+}
+
+func CommentSubresourceRouter(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/comments/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		sendErrorResponse(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	commentID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || commentID <= 0 {
+		sendErrorResponse(w, "Invalid comment id", http.StatusBadRequest)
+		return
+	}
+
+	switch parts[1] {
+	case "react":
+		handleReactComment(w, r)
+	default:
+		sendErrorResponse(w, "Not found", http.StatusNotFound)
+	}
 }

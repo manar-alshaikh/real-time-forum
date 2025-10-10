@@ -1,6 +1,6 @@
       const container = document.getElementById('galaxy');
 
-        // Generate random stars
+        
         for (let i = 0; i < 200; i++) {
             const star = document.createElement('div');
             star.className = 'star';

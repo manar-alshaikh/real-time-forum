@@ -54,7 +54,7 @@ export function escapeHTML(s) {
   return String(s ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-// WebSocket functions
+
 export function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -71,7 +71,7 @@ export function connectWebSocket() {
 
   socket.addEventListener('close', (event) => {
     console.log('WebSocket disconnected');
-    // Attempt to reconnect after 3 seconds
+    
     setTimeout(() => {
       connectWebSocket();
     }, 3000);
@@ -88,5 +88,5 @@ export function emit(type, data) {
   }
 }
 
-// Connect WebSocket when utils is imported
+
 connectWebSocket();

@@ -38,10 +38,10 @@ class PrivateChatManager {
                 resolve();
             };
 
-            // Listen for the ready event
+            
             document.addEventListener('contactsManagerReady', eventHandler);
 
-            // Fallback: Check every 100ms for 5 seconds
+            
             let attempts = 0;
             const fallbackCheck = setInterval(() => {
                 attempts++;
@@ -147,7 +147,7 @@ class PrivateChatManager {
     handleUserInputActivity() {
         if (!this.currentChat || !this.currentChat.is_online) return;
 
-        // Clear existing timeouts
+        
         if (this.typingActivationTimeout) {
             clearTimeout(this.typingActivationTimeout);
         }
@@ -155,12 +155,12 @@ class PrivateChatManager {
             clearTimeout(this.typingInactivityTimeout);
         }
 
-        // Start typing immediately on first input
+        
         if (!this.isCurrentlyTyping) {
             this.handleTypingStart();
         }
 
-        // Reset the inactivity timer
+        
         this.typingInactivityTimeout = setTimeout(() => {
             this.handleTypingStop();
         }, 1000);
@@ -564,7 +564,7 @@ async sendMessage() {
 
     this.pendingMessageIds.add(tempMessage.id);
 
-    // Add the temporary message immediately for the sender
+    
     this.appendNewMessage(tempMessage);
     messageInput.value = '';
     this.resizeTextarea(messageInput);
@@ -578,12 +578,12 @@ async sendMessage() {
         });
 
         if (data?.success && data.message) {
-            // Replace the temporary message with the real one from the server
+            
             this.pendingMessageIds.delete(tempMessage.id);
             this.replaceTempMessage(tempMessage.id, data.message);
             this.pendingMessageIds.add(data.message.id);
             
-            // Update the contact order for the sender as well
+            
             if (window.contactsManager) {
                 window.contactsManager.updateContactOrderAfterMessage(
                     this.currentChat.user_id,
@@ -595,7 +595,7 @@ async sendMessage() {
         }
     } catch (error) {
         console.error('Error sending message:', error);
-        // Remove the temporary message if sending failed
+        
         this.pendingMessageIds.delete(tempMessage.id);
         this.removeMessageById(tempMessage.id);
         alert('Failed to send message. Please try again.');
@@ -623,12 +623,12 @@ replaceTempMessage(tempId, realMessage) {
         tempElement.replaceWith(newElement);
     }
 
-    // Update the messages array
+    
     const messageIndex = this.messages.findIndex(m => m.id === tempId);
     if (messageIndex !== -1) {
         this.messages[messageIndex] = realMessage;
     } else {
-        // If temp message not found, add the real message
+        
         this.messages.push(realMessage);
     }
 }
@@ -646,12 +646,12 @@ replaceTempMessage(tempId, realMessage) {
     }
 
 handleNewMessage(messageData) {
-    // Check if this message is relevant to our current chat
+    
     const isRelevantToCurrentChat = this.currentChat && 
         (messageData.from_user_id === this.currentChat.user_id || 
          messageData.to_user_id === this.currentChat.user_id);
     
-    // Check if this is our own message (we sent it)
+    
     const isOwnMessage = messageData.from_user_id === this.currentUserId;
     
     const isPending = this.pendingMessageIds.has(messageData.id);
@@ -666,25 +666,25 @@ handleNewMessage(messageData) {
         return;
     }
 
-    // Only add the message if:
-    // 1. It's relevant to our current chat AND we didn't send it (recipient case)
-    // OR
-    // 2. We sent it but it's not in our current messages yet (sender case - fallback)
+    
+    
+    
+    
     if (isRelevantToCurrentChat && !isOwnMessage) {
         this.appendNewMessage(messageData);
         
-        // Show notification for new messages FROM other users (we are the recipient)
+        
         if (window.privateChatNotifications) {
             console.log('📱 Private chat manager forwarding message to notifications');
             window.privateChatNotifications.handleNewMessage(messageData);
         }
     } else if (isOwnMessage && !this.messages.some(msg => msg.id === messageData.id)) {
-        // Fallback: If we sent this message but it's not in our list, add it
-        // This can happen if the WebSocket message comes through for some reason
+        
+        
         this.appendNewMessage(messageData);
     }
 
-    // Update contact order for messages from other users
+    
     if (window.contactsManager && messageData.from_user_id !== this.currentUserId) {
         window.contactsManager.updateContactOrderAfterMessage(
             messageData.from_user_id,
@@ -928,4 +928,4 @@ handleNewMessage(messageData) {
 }
 
 const privateChatManager = new PrivateChatManager();
-export default privateChatManager;       
+export default privateChatManager;
