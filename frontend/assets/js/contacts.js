@@ -10,6 +10,7 @@ class ContactsManager {
         this.activeChat = null;
         this.isInitialized = false;
         this.pendingContacts = [];
+        this.unreadCounts = new Map(); 
         this.setupMessageActivityListener();
         this.init();
     }
@@ -28,10 +29,124 @@ class ContactsManager {
         this.setupWebSocketHandlers();
         this.setupFilterHandlers();
         this.setupChatToggleHandlers();
+        
+        
+        this.loadPersistedUnreadCounts();
 
         await this.initializeUserAndContacts();
 
         this.setupPeriodicRefresh();
+    }
+
+    
+    loadPersistedUnreadCounts() {
+        try {
+            const stored = localStorage.getItem('privateChatUnreadCounts');
+            if (stored) {
+                const counts = JSON.parse(stored);
+                this.unreadCounts = new Map(Object.entries(counts).map(([key, value]) => [parseInt(key), value]));
+                console.log('📊 Loaded persisted unread counts:', Object.fromEntries(this.unreadCounts));
+            }
+        } catch (error) {
+            console.error('Failed to load persisted unread counts:', error);
+            this.unreadCounts = new Map();
+        }
+    }
+
+    
+    saveUnreadCounts() {
+        try {
+            const counts = Object.fromEntries(this.unreadCounts);
+            localStorage.setItem('privateChatUnreadCounts', JSON.stringify(counts));
+            console.log('💾 Saved unread counts to storage:', counts);
+        } catch (error) {
+            console.error('Failed to save unread counts:', error);
+        }
+    }
+
+    
+    getUnreadCount(userId) {
+        return this.unreadCounts.get(userId) || 0;
+    }
+
+    
+    setUnreadCount(userId, count) {
+        if (count > 0) {
+            this.unreadCounts.set(userId, count);
+        } else {
+            this.unreadCounts.delete(userId);
+        }
+        this.saveUnreadCounts();
+        
+        
+        this.updateCounterBadge(userId);
+    }
+
+    
+    incrementUnreadCount(userId) {
+        const currentCount = this.getUnreadCount(userId);
+        const newCount = currentCount + 1;
+        this.setUnreadCount(userId, newCount);
+        return newCount;
+    }
+
+    
+    resetUnreadCount(userId) {
+        this.setUnreadCount(userId, 0);
+    }
+
+    
+    updateCounterBadge(userId) {
+        const contactElement = $(`.contact[data-user-id="${userId}"]`);
+        if (!contactElement) {
+            console.log('Contact element not found for user:', userId, 'retrying...');
+            setTimeout(() => this.updateCounterBadge(userId), 500);
+            return;
+        }
+
+        
+        this.removeCounterBadge(userId);
+
+        const unreadCount = this.getUnreadCount(userId);
+        if (unreadCount > 0) {
+            const counter = document.createElement('span');
+            counter.className = 'unread-counter';
+            
+            
+            if (unreadCount < 10) {
+                counter.classList.add('single-digit');
+            } else if (unreadCount < 100) {
+                counter.classList.add('double-digit');
+            } else {
+                counter.classList.add('triple-digit');
+            }
+            
+            counter.textContent = unreadCount > 99 ? '99+' : unreadCount.toString();
+            contactElement.style.position = 'relative';
+            contactElement.appendChild(counter);
+            console.log('✅ Counter badge updated for user:', userId, 'Count:', unreadCount);
+        }
+    }
+
+    
+    removeCounterBadge(userId) {
+        const contactElement = $(`.contact[data-user-id="${userId}"]`);
+        if (!contactElement) return;
+
+        const existingCounter = contactElement.querySelector('.unread-counter');
+        if (existingCounter) {
+            existingCounter.remove();
+        }
+    }
+
+    
+    refreshAllCounterBadges() {
+        console.log('🔄 Refreshing all counter badges...');
+        this.unreadCounts.forEach((count, userId) => {
+            if (count > 0) {
+                this.updateCounterBadge(userId);
+            }
+        });
     }
 
     async initializeUserAndContacts() {
@@ -164,45 +279,41 @@ class ContactsManager {
         return filtered;
     }
 
-renderContacts(contacts) {
-    const contactsContainer = $('.private-messages-scroll');
-    if (!contactsContainer) {
-        console.error('Contacts container not found!');
-        return;
+    renderContacts(contacts) {
+        const contactsContainer = $('.private-messages-scroll');
+        if (!contactsContainer) {
+            console.error('Contacts container not found!');
+            return;
+        }
+
+        console.log(`🎨 Rendering ${contacts.length} contacts with filter: ${this.currentFilter}`);
+
+        contactsContainer.innerHTML = '';
+
+        if (contacts.length === 0) {
+            this.showNoContactsMessage(contactsContainer);
+            return;
+        }
+
+        const filteredContacts = this.applyCurrentFilter(contacts);
+        const sortedContacts = this.sortContactsAlphabetically(filteredContacts);
+
+        console.log(`📋 Final contacts to render: ${sortedContacts.length}`);
+
+        sortedContacts.forEach(contact => {
+            const contactElement = this.createContactElement(contact);
+            contactsContainer.appendChild(contactElement);
+        });
+
+        if (this.activeChat) {
+            this.highlightActiveContact(this.activeChat.user_id);
+        }
+
+        
+        this.refreshAllCounterBadges();
+
+        console.log('✅ Contacts rendered successfully');
     }
-
-    console.log(`🎨 Rendering ${contacts.length} contacts with filter: ${this.currentFilter}`);
-
-    contactsContainer.innerHTML = '';
-
-    if (contacts.length === 0) {
-        this.showNoContactsMessage(contactsContainer);
-        return;
-    }
-
-    const filteredContacts = this.applyCurrentFilter(contacts);
-    const sortedContacts = this.sortContactsAlphabetically(filteredContacts);
-
-    console.log(`📋 Final contacts to render: ${sortedContacts.length}`);
-
-    sortedContacts.forEach(contact => {
-        const contactElement = this.createContactElement(contact);
-        contactsContainer.appendChild(contactElement);
-    });
-
-    if (this.activeChat) {
-        this.highlightActiveContact(this.activeChat.user_id);
-    }
-
-    
-    if (window.privateChatNotifications) {
-        setTimeout(() => {
-            window.privateChatNotifications.refreshAllCounterBadges();
-        }, 100);
-    }
-
-    console.log('✅ Contacts rendered successfully');
-}
 
     sortContactsAlphabetically(contacts) {
         return contacts.sort((a, b) => {
@@ -293,117 +404,111 @@ renderContacts(contacts) {
         return contactDiv;
     }
 
-updateContactOrderAfterMessage(userId, timestamp) {
-    console.log('Updating contact order for user:', userId, 'with timestamp:', timestamp);
+    updateContactOrderAfterMessage(userId, timestamp) {
+        console.log('Updating contact order for user:', userId, 'with timestamp:', timestamp);
 
-    const contact = this.contacts.get(userId);
-    if (!contact) return;
+        const contact = this.contacts.get(userId);
+        if (!contact) return;
 
-    contact.last_message_time = timestamp;
+        contact.last_message_time = timestamp;
 
-    
-    const currentContacts = Array.from(this.contacts.values());
-    const sortedContacts = this.sortContactsAlphabetically(currentContacts);
-
-    const contactsContainer = $('.private-messages-scroll');
-    if (!contactsContainer) return;
-
-    
-    const contactElements = Array.from(contactsContainer.querySelectorAll('.contact'));
-    
-    
-    contactElements.sort((a, b) => {
-        const aUserId = parseInt(a.dataset.userId);
-        const bUserId = parseInt(b.dataset.userId);
         
-        const aIndex = sortedContacts.findIndex(contact => contact.user_id === aUserId);
-        const bIndex = sortedContacts.findIndex(contact => contact.user_id === bUserId);
+        const currentContacts = Array.from(this.contacts.values());
+        const sortedContacts = this.sortContactsAlphabetically(currentContacts);
+
+        const contactsContainer = $('.private-messages-scroll');
+        if (!contactsContainer) return;
+
         
-        return aIndex - bIndex;
-    });
+        const contactElements = Array.from(contactsContainer.querySelectorAll('.contact'));
+        
+        
+        contactElements.sort((a, b) => {
+            const aUserId = parseInt(a.dataset.userId);
+            const bUserId = parseInt(b.dataset.userId);
+            
+            const aIndex = sortedContacts.findIndex(contact => contact.user_id === aUserId);
+            const bIndex = sortedContacts.findIndex(contact => contact.user_id === bUserId);
+            
+            return aIndex - bIndex;
+        });
 
-    
-    contactElements.forEach(element => {
-        contactsContainer.appendChild(element);
-    });
+        
+        contactElements.forEach(element => {
+            contactsContainer.appendChild(element);
+        });
 
-    console.log('✅ Contact order updated for:', contact.username);
-}
-
-
-setupWebSocketHandlers() {
-    if (!socket) {
-        console.error('WebSocket not available');
-        return;
+        console.log('✅ Contact order updated for:', contact.username);
     }
 
-    console.log('Setting up WebSocket handlers...');
-
-    socket.addEventListener('message', (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            console.log('WebSocket message:', data);
-
-            switch (data.type) {
-                case 'user_registered':
-                    this.handleNewUser(data.data);
-                    break;
-                case 'user_online_status':
-                    this.handleUserOnlineStatus(data.data);
-                    break;
-                case 'user_authenticated':
-                    console.log('User authenticated via WebSocket, reloading contacts...');
-                    this.initializeUserAndContacts();
-                    break;
-                case 'new_private_message':
-                    
-                    this.handlePrivateMessageForCurrentUser(data.data);
-                    break;
-            }
-        } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
+    setupWebSocketHandlers() {
+        if (!socket) {
+            console.error('WebSocket not available');
+            return;
         }
-    });
-}
 
+        console.log('Setting up WebSocket handlers...');
 
-handlePrivateMessageForCurrentUser(messageData) {
-    console.log('🔍 Checking if private message is for current user:', messageData);
-    
-    
-    const isForCurrentUser = 
-        messageData.to_user_id === this.currentUserId || 
-        messageData.from_user_id === this.currentUserId;
-    
-    if (!isForCurrentUser) {
-        console.log('❌ Private message not for current user, ignoring');
-        return;
+        socket.addEventListener('message', (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('WebSocket message:', data);
+
+                switch (data.type) {
+                    case 'user_registered':
+                        this.handleNewUser(data.data);
+                        break;
+                    case 'user_online_status':
+                        this.handleUserOnlineStatus(data.data);
+                        break;
+                    case 'user_authenticated':
+                        console.log('User authenticated via WebSocket, reloading contacts...');
+                        this.initializeUserAndContacts();
+                        break;
+                    case 'new_private_message':
+                        
+                        this.handlePrivateMessageForCurrentUser(data.data);
+                        break;
+                }
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
+        });
     }
-    
-    console.log('✅ Private message is for current user, processing...');
-    
-    
-    this.handleNewPrivateMessage(messageData);
-    
-    
-    
-    if (window.privateChatNotifications && messageData.to_user_id === this.currentUserId) {
-        console.log('📢 Forwarding WebSocket message to notifications (we are recipient)');
-        window.privateChatNotifications.handleNewMessage(messageData);
-    } else {
-        console.log('📤 We are the sender, skipping notifications');
+
+    handlePrivateMessageForCurrentUser(messageData) {
+        console.log('🔍 Checking if private message is for current user:', messageData);
+        
+        
+        const isForCurrentUser = 
+            messageData.to_user_id === this.currentUserId || 
+            messageData.from_user_id === this.currentUserId;
+        
+        if (!isForCurrentUser) {
+            console.log('❌ Private message not for current user, ignoring');
+            return;
+        }
+        
+        console.log('✅ Private message is for current user, processing...');
+        
+        
+        this.handleNewPrivateMessage(messageData);
+        
+        
+        if (messageData.to_user_id === this.currentUserId && messageData.from_user_id !== this.currentUserId) {
+            console.log('📈 Incrementing unread count for user:', messageData.from_user_id);
+            this.incrementUnreadCount(messageData.from_user_id);
+        }
     }
-}
 
+    handleNewPrivateMessage(messageData) {
+        console.log('New private message received for contact ordering:', messageData);
 
-handleNewPrivateMessage(messageData) {
-    console.log('New private message received for contact ordering:', messageData);
+        const otherUserId = messageData.from_user_id === this.currentUserId ?
+            messageData.to_user_id : messageData.from_user_id;
 
-    const otherUserId = messageData.from_user_id === this.currentUserId ?
-        messageData.to_user_id : messageData.from_user_id;
-
-    this.updateContactOrderAfterMessage(otherUserId, messageData.created_at);
-}
+        this.updateContactOrderAfterMessage(otherUserId, messageData.created_at);
+    }
 
     setupFilterHandlers() {
         const allFilter = $('#allMessages');
@@ -472,18 +577,21 @@ handleNewPrivateMessage(messageData) {
         }
     }
 
-startPrivateChat(contact) {
-    console.log('Opening chat with:', contact.username);
-    this.activeChat = contact;
-    
-    if (window.privateChatNotifications) {
-        console.log('🗑️ Removing notifications and counter badges for user:', contact.user_id);
-        window.privateChatNotifications.handleChatOpened(contact.user_id);
+    startPrivateChat(contact) {
+        console.log('Opening chat with:', contact.username);
+        this.activeChat = contact;
+        
+        
+        this.resetUnreadCount(contact.user_id);
+        
+        if (window.privateChatNotifications) {
+            console.log('🗑️ Removing notifications and counter badges for user:', contact.user_id);
+            window.privateChatNotifications.handleChatOpened(contact.user_id);
+        }
+        
+        privateChatManager.openChat(contact);
+        this.showChatSection(contact);
     }
-    
-    privateChatManager.openChat(contact);
-    this.showChatSection(contact);
-}
 
     showChatSection(contact) {
         const postsSection = $('#postsSection');
@@ -583,6 +691,11 @@ startPrivateChat(contact) {
     refreshContacts() {
         console.log('Manual contacts refresh requested');
         this.loadContacts();
+    }
+
+    
+    cleanup() {
+        this.saveUnreadCounts();
     }
 }
 
