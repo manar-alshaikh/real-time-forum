@@ -22,39 +22,39 @@ class PrivateChatManager {
         this.isCurrentlyTyping = false;
         this.emojiPicker = new EmojiPicker();
         this.isInitialized = false;
+        this.lastScrollPosition = 0;
+        this.isAtBottom = true;
+        this.isInitialLoad = true;
 
-        this.waitForContactsManager();
+        this.setupUserChangeHandler();
+        this.init();
     }
 
-    async waitForContactsManager() {
-
-        return new Promise((resolve) => {
-            const eventHandler = (event) => {
-                this.currentUserId = event.detail.currentUserId;
-                document.removeEventListener('contactsManagerReady', eventHandler);
-                this.init();
-                resolve();
-            };
-
-            
-            document.addEventListener('contactsManagerReady', eventHandler);
-
-            
-            let attempts = 0;
-            const fallbackCheck = setInterval(() => {
-                attempts++;
-                if (window.contactsManager && window.contactsManager.currentUserId) {
-                    clearInterval(fallbackCheck);
-                    this.currentUserId = window.contactsManager.currentUserId;
-                    this.init();
-                    resolve();
-                } else if (attempts > 50) {
-                    clearInterval(fallbackCheck);
-                    console.error('❌ Timeout waiting for ContactsManager');
-                    resolve();
-                }
-            }, 100);
+    setupUserChangeHandler() {
+        document.addEventListener('userLoggedIn', () => {
+            this.handleUserChange();
         });
+        
+        document.addEventListener('userLoggedOut', () => {
+            this.handleUserChange();
+        });
+        
+        document.addEventListener('contactsManagerReady', (event) => {
+            this.currentUserId = event.detail.currentUserId;
+            console.log('PrivateChat: User ID updated to', this.currentUserId);
+        });
+    }
+
+    handleUserChange() {
+        console.log('PrivateChat: User changed, clearing all data');
+        this.cleanup();
+        
+        
+        if (window.contactsManager && window.contactsManager.currentUserId) {
+            this.currentUserId = window.contactsManager.currentUserId;
+        } else {
+            this.currentUserId = null;
+        }
     }
 
     init() {
@@ -62,6 +62,17 @@ class PrivateChatManager {
         this.setupWebSocketHandlers();
         this.setupScrollListener();
         this.setupEmojiPicker();
+        
+        if (window.contactsManager && window.contactsManager.currentUserId) {
+            this.currentUserId = window.contactsManager.currentUserId;
+            this.isInitialized = true;
+        } else {
+            document.addEventListener('contactsManagerReady', (event) => {
+                this.currentUserId = event.detail.currentUserId;
+                this.isInitialized = true;
+            });
+        }
+        
         this.isInitialized = true;
     }
 
@@ -143,7 +154,6 @@ class PrivateChatManager {
     handleUserInputActivity() {
         if (!this.currentChat || !this.currentChat.is_online) return;
 
-        
         if (this.typingActivationTimeout) {
             clearTimeout(this.typingActivationTimeout);
         }
@@ -151,12 +161,10 @@ class PrivateChatManager {
             clearTimeout(this.typingInactivityTimeout);
         }
 
-        
         if (!this.isCurrentlyTyping) {
             this.handleTypingStart();
         }
 
-        
         this.typingInactivityTimeout = setTimeout(() => {
             this.handleTypingStop();
         }, 1000);
@@ -204,8 +212,22 @@ class PrivateChatManager {
         if (chatMessages) {
             chatMessages.addEventListener('scroll', () => {
                 this.handleMessagesScroll();
+                this.checkIfAtBottom();
             });
         }
+    }
+
+    checkIfAtBottom() {
+        const chatMessages = $('#chatMessages');
+        if (!chatMessages) return;
+
+        const threshold = 100; 
+        const scrollTop = chatMessages.scrollTop;
+        const scrollHeight = chatMessages.scrollHeight;
+        const clientHeight = chatMessages.clientHeight;
+
+        this.isAtBottom = (scrollHeight - scrollTop - clientHeight) <= threshold;
+        this.isInitialLoad = false; 
     }
 
     async handleMessagesScroll() {
@@ -235,19 +257,34 @@ class PrivateChatManager {
             if (data?.success) {
                 if (data.messages?.length > 0) {
                     const chatMessages = $('#chatMessages');
-                    const scrollPositionBefore = chatMessages.scrollHeight - chatMessages.scrollTop;
+                    const scrollPositionBefore = chatMessages.scrollHeight;
 
                     const olderMessages = data.messages;
-                    this.messages = [...olderMessages, ...this.messages];
-                    this.currentPage = nextPage;
-                    this.hasMoreMessages = data.hasMore;
+                    const uniqueOlderMessages = olderMessages.filter(newMsg => 
+                        !this.messages.some(existingMsg => existingMsg.id === newMsg.id)
+                    );
 
-                    this.prependOlderMessages(olderMessages);
+                    if (uniqueOlderMessages.length > 0) {
+                        
+                        const firstMessageId = this.messages.length > 0 ? this.messages[0].id : null;
 
-                    requestAnimationFrame(() => {
-                        const newScrollHeight = chatMessages.scrollHeight;
-                        chatMessages.scrollTop = newScrollHeight - scrollPositionBefore;
-                    });
+                        
+                        this.messages = [...uniqueOlderMessages, ...this.messages];
+                        this.currentPage = nextPage;
+                        this.hasMoreMessages = data.hasMore;
+
+                        
+                        this.renderOlderMessages(uniqueOlderMessages, firstMessageId);
+
+                        
+                        requestAnimationFrame(() => {
+                            const newScrollHeight = chatMessages.scrollHeight;
+                            const heightDifference = newScrollHeight - scrollPositionBefore;
+                            chatMessages.scrollTop = heightDifference;
+                        });
+                    } else {
+                        this.hasMoreMessages = false;
+                    }
 
                     this.updateLoadMoreButton();
                 } else {
@@ -262,6 +299,31 @@ class PrivateChatManager {
             this.isLoadingOlderMessages = false;
             this.hideOlderMessagesLoading();
         }
+    }
+
+    renderOlderMessages(olderMessages, firstMessageId) {
+        const chatMessages = $('#chatMessages');
+        if (!chatMessages) return;
+
+        
+        const firstMessageElement = firstMessageId ? 
+            chatMessages.querySelector(`[data-message-id="${firstMessageId}"]`) : null;
+
+        
+        olderMessages.forEach(message => {
+            const messageElement = this.createMessageElement(message);
+            if (firstMessageElement) {
+                chatMessages.insertBefore(messageElement, firstMessageElement);
+            } else {
+                
+                const loadMoreIndicator = $('#loadMoreIndicator');
+                if (loadMoreIndicator) {
+                    chatMessages.insertBefore(messageElement, loadMoreIndicator.nextSibling);
+                } else {
+                    chatMessages.appendChild(messageElement);
+                }
+            }
+        });
     }
 
     updateLoadMoreButton() {
@@ -280,25 +342,6 @@ class PrivateChatManager {
                 loadMoreIndicator.style.display = 'none';
             }
         }
-    }
-
-    prependOlderMessages(olderMessages) {
-        const chatMessages = $('#chatMessages');
-        if (!chatMessages) return;
-
-        const loadMoreIndicator = $('#loadMoreIndicator');
-        const firstMessage = chatMessages.querySelector('.message');
-
-        olderMessages.forEach(message => {
-            const messageElement = this.createMessageElement(message);
-            if (firstMessage) {
-                chatMessages.insertBefore(messageElement, firstMessage);
-            } else if (loadMoreIndicator) {
-                chatMessages.insertBefore(messageElement, loadMoreIndicator.nextSibling);
-            } else {
-                chatMessages.appendChild(messageElement);
-            }
-        });
     }
 
     showOlderMessagesLoading() {
@@ -398,6 +441,8 @@ class PrivateChatManager {
         this.hasMoreMessages = true;
         this.pendingMessageIds.clear();
         this.isLoadingOlderMessages = false;
+        this.isAtBottom = true;
+        this.isInitialLoad = true;
 
         this.updateChatHeader(contact);
         this.clearMessages();
@@ -409,7 +454,6 @@ class PrivateChatManager {
 
         await this.loadInitialMessages();
         this.hideLoadingIndicator();
-        this.scrollToBottom();
 
         this.updateInputFieldStatus(contact.is_online);
 
@@ -431,9 +475,18 @@ class PrivateChatManager {
             );
 
             if (data?.success) {
-                this.messages = data.messages || [];
+                const messages = data.messages || [];
+                
+                
+                this.messages = messages;
                 this.hasMoreMessages = data.hasMore;
-                this.renderInitialMessages();
+                this.currentPage = 1;
+                
+                
+                await this.renderAllMessages();
+                
+                
+                this.forceScrollToBottom();
             } else {
                 this.showErrorMessage('Failed to load messages');
             }
@@ -446,39 +499,87 @@ class PrivateChatManager {
         }
     }
 
-    renderInitialMessages() {
+    renderAllMessages() {
+        return new Promise((resolve) => {
+            const chatMessages = $('#chatMessages');
+            if (!chatMessages) {
+                resolve();
+                return;
+            }
+
+            
+            chatMessages.innerHTML = '';
+
+            if (this.messages.length === 0) {
+                this.showNoMessages();
+                resolve();
+                return;
+            }
+
+            
+            if (this.hasMoreMessages) {
+                const loadMoreDiv = document.createElement('div');
+                loadMoreDiv.id = 'loadMoreIndicator';
+                loadMoreDiv.className = 'load-more-indicator';
+                loadMoreDiv.innerHTML = `
+                    <div class="load-more-content">
+                        <button class="load-more-btn" onclick="privateChatManager.loadOlderMessages()">
+                            Load older messages
+                        </button>
+                    </div>
+                `;
+                chatMessages.appendChild(loadMoreDiv);
+            }
+
+            
+            this.messages.forEach(message => {
+                const messageElement = this.createMessageElement(message);
+                chatMessages.appendChild(messageElement);
+            });
+
+            this.renderTypingIndicator();
+            
+            
+            requestAnimationFrame(() => {
+                resolve();
+            });
+        });
+    }
+
+    forceScrollToBottom() {
         const chatMessages = $('#chatMessages');
         if (!chatMessages) return;
 
-        chatMessages.innerHTML = '';
+        
+        const attemptScroll = (attempt = 0) => {
+            if (attempt > 5) return; 
+            
+            const scrollHeight = chatMessages.scrollHeight;
+            const clientHeight = chatMessages.clientHeight;
+            
+            if (scrollHeight > clientHeight) {
+                chatMessages.scrollTop = scrollHeight;
+                
+                
+                setTimeout(() => {
+                    const currentScrollTop = chatMessages.scrollTop;
+                    const currentScrollHeight = chatMessages.scrollHeight;
+                    
+                    if (currentScrollTop + clientHeight < currentScrollHeight - 10) {
+                        
+                        attemptScroll(attempt + 1);
+                    }
+                }, 50);
+            } else {
+                
+                chatMessages.scrollTop = 0;
+            }
+        };
 
-        if (this.messages.length === 0) {
-            this.showNoMessages();
-            return;
-        }
-
-        if (this.hasMoreMessages) {
-            const loadMoreDiv = document.createElement('div');
-            loadMoreDiv.id = 'loadMoreIndicator';
-            loadMoreDiv.className = 'load-more-indicator';
-            loadMoreDiv.innerHTML = `
-                <div class="load-more-content">
-                    <button class="load-more-btn" onclick="privateChatManager.loadOlderMessages()">
-                        Load older messages
-                    </button>
-                </div>
-            `;
-            chatMessages.appendChild(loadMoreDiv);
-        }
-
-        this.messages.forEach(message => {
-            const messageElement = this.createMessageElement(message);
-            chatMessages.appendChild(messageElement);
-        });
-
-        this.renderTypingIndicator();
-
-        this.scrollToBottom();
+        
+        setTimeout(() => {
+            attemptScroll(0);
+        }, 100);
     }
 
     createMessageElement(message) {
@@ -533,101 +634,104 @@ class PrivateChatManager {
         return messageDiv;
     }
 
-async sendMessage() {
-    const messageInput = $('#chatMessageInput');
-    if (!messageInput || !this.currentChat) return;
+    async sendMessage() {
+        const messageInput = $('#chatMessageInput');
+        if (!messageInput || !this.currentChat) return;
 
-    if (!this.currentChat.is_online) {
-        alert('Cannot send message: User is offline');
-        return;
-    }
+        if (!this.currentChat.is_online) {
+            alert('Cannot send message: User is offline');
+            return;
+        }
 
-    const content = messageInput.value.trim();
-    if (!content) return;
+        const content = messageInput.value.trim();
+        if (!content) return;
 
-    this.handleTypingStop();
+        this.handleTypingStop();
 
-    const tempMessage = {
-        id: Date.now(),
-        from_user_id: this.currentUserId,
-        to_user_id: this.currentChat.user_id,
-        content: content,
-        message_type: 'text',
-        is_read: true,
-        created_at: new Date().toISOString(),
-        username: 'You'
-    };
-
-    this.pendingMessageIds.add(tempMessage.id);
-
-    
-    this.appendNewMessage(tempMessage);
-    messageInput.value = '';
-    this.resizeTextarea(messageInput);
-    this.scrollToBottom();
-
-    try {
-        const data = await apiPost('/api/private-messages/send', {
+        const tempMessage = {
+            id: Date.now(),
+            from_user_id: this.currentUserId,
             to_user_id: this.currentChat.user_id,
             content: content,
-            message_type: 'text'
-        });
+            message_type: 'text',
+            is_read: true,
+            created_at: new Date().toISOString(),
+            username: 'You'
+        };
 
-        if (data?.success && data.message) {
+        this.pendingMessageIds.add(tempMessage.id);
+
+        this.appendNewMessage(tempMessage);
+        messageInput.value = '';
+        this.resizeTextarea(messageInput);
+        this.scrollToBottom();
+
+        try {
+            const data = await apiPost('/api/private-messages/send', {
+                to_user_id: this.currentChat.user_id,
+                content: content,
+                message_type: 'text'
+            });
+
+            if (data?.success && data.message) {
+                this.pendingMessageIds.delete(tempMessage.id);
+                this.replaceTempMessage(tempMessage.id, data.message);
+                this.pendingMessageIds.add(data.message.id);
+                
+                if (window.contactsManager) {
+                    window.contactsManager.updateContactOrderAfterMessage(
+                        this.currentChat.user_id,
+                        data.message.created_at
+                    );
+                }
+            } else {
+                throw new Error('Failed to send message');
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
             
             this.pendingMessageIds.delete(tempMessage.id);
-            this.replaceTempMessage(tempMessage.id, data.message);
-            this.pendingMessageIds.add(data.message.id);
-            
-            
-            if (window.contactsManager) {
-                window.contactsManager.updateContactOrderAfterMessage(
-                    this.currentChat.user_id,
-                    data.message.created_at
-                );
-            }
-        } else {
-            throw new Error('Failed to send message');
+            this.removeMessageById(tempMessage.id);
+            alert('Failed to send message. Please try again.');
         }
-    } catch (error) {
-        console.error('Error sending message:', error);
-        
-        this.pendingMessageIds.delete(tempMessage.id);
-        this.removeMessageById(tempMessage.id);
-        alert('Failed to send message. Please try again.');
     }
-}
 
     appendNewMessage(message) {
         const chatMessages = $('#chatMessages');
         if (!chatMessages) return;
 
-        const messageElement = this.createMessageElement(message);
-        chatMessages.appendChild(messageElement);
-        this.messages.push(message);
+        const existingMessage = chatMessages.querySelector(`[data-message-id="${message.id}"]`);
+        if (existingMessage) return;
 
-        this.scrollToBottom();
-    }
-
-replaceTempMessage(tempId, realMessage) {
-    const chatMessages = $('#chatMessages');
-    if (!chatMessages) return;
-
-    const tempElement = chatMessages.querySelector(`[data-message-id="${tempId}"]`);
-    if (tempElement) {
-        const newElement = this.createMessageElement(realMessage);
-        tempElement.replaceWith(newElement);
-    }
-
-    
-    const messageIndex = this.messages.findIndex(m => m.id === tempId);
-    if (messageIndex !== -1) {
-        this.messages[messageIndex] = realMessage;
-    } else {
         
-        this.messages.push(realMessage);
+        if (!this.messages.some(msg => msg.id === message.id)) {
+            this.messages.push(message);
+        }
+
+        
+        const messageElement = this.createMessageElement(message);
+        
+        
+        const typingIndicator = chatMessages.querySelector('.typing-indicator');
+        if (typingIndicator) {
+            chatMessages.insertBefore(messageElement, typingIndicator);
+        } else {
+            chatMessages.appendChild(messageElement);
+        }
     }
-}
+
+    replaceTempMessage(tempId, realMessage) {
+        
+        this.removeMessageById(tempId);
+        
+        
+        if (!this.messages.some(m => m.id === realMessage.id)) {
+            this.messages.push(realMessage);
+        }
+
+        
+        this.appendNewMessage(realMessage);
+    }
 
     removeMessageById(messageId) {
         const chatMessages = $('#chatMessages');
@@ -641,52 +745,53 @@ replaceTempMessage(tempId, realMessage) {
         this.messages = this.messages.filter(m => m.id !== messageId);
     }
 
-handleNewMessage(messageData) {
-    
-    const isRelevantToCurrentChat = this.currentChat && 
-        (messageData.from_user_id === this.currentChat.user_id || 
-         messageData.to_user_id === this.currentChat.user_id);
-    
-    
-    const isOwnMessage = messageData.from_user_id === this.currentUserId;
-    
-    const isPending = this.pendingMessageIds.has(messageData.id);
-    const messageExists = this.messages.some(msg => msg.id === messageData.id);
-
-    if (isPending) {
-        this.pendingMessageIds.delete(messageData.id);
-        return;
-    }
-
-    if (messageExists) {
-        return;
-    }
-
-    
-    
-    
-    
-    if (isRelevantToCurrentChat && !isOwnMessage) {
-        this.appendNewMessage(messageData);
+    handleNewMessage(messageData) {
+        const isRelevantToCurrentChat = this.currentChat && 
+            (messageData.from_user_id === this.currentChat.user_id || 
+             messageData.to_user_id === this.currentChat.user_id);
         
+        const isOwnMessage = messageData.from_user_id === this.currentUserId;
+        const isPending = this.pendingMessageIds.has(messageData.id);
         
-        if (window.privateChatNotifications) {
-            window.privateChatNotifications.handleNewMessage(messageData);
-        }
-    } else if (isOwnMessage && !this.messages.some(msg => msg.id === messageData.id)) {
-        
-        
-        this.appendNewMessage(messageData);
-    }
-
-    
-    if (window.contactsManager && messageData.from_user_id !== this.currentUserId) {
-        window.contactsManager.updateContactOrderAfterMessage(
-            messageData.from_user_id,
-            messageData.created_at
+        const messageExists = this.messages.some(msg => 
+            msg.id === messageData.id || 
+            (msg.content === messageData.content && 
+             msg.from_user_id === messageData.from_user_id &&
+             Math.abs(new Date(msg.created_at) - new Date(messageData.created_at)) < 1000)
         );
+
+        if (isPending || messageExists) {
+            if (isPending) {
+                this.pendingMessageIds.delete(messageData.id);
+            }
+            return;
+        }
+
+        if (isRelevantToCurrentChat && !isOwnMessage) {
+            this.appendNewMessage(messageData);
+            
+            
+            if (this.isAtBottom) {
+                this.scrollToBottom();
+            }
+            
+            if (window.privateChatNotifications) {
+                window.privateChatNotifications.handleNewMessage(messageData);
+            }
+        } else if (isOwnMessage && !this.messages.some(msg => msg.id === messageData.id)) {
+            this.appendNewMessage(messageData);
+            if (this.isAtBottom) {
+                this.scrollToBottom();
+            }
+        }
+
+        if (window.contactsManager && messageData.from_user_id !== this.currentUserId) {
+            window.contactsManager.updateContactOrderAfterMessage(
+                messageData.from_user_id,
+                messageData.created_at
+            );
+        }
     }
-}
 
     updateInputFieldStatus(isOnline) {
         const messageInput = $('#chatMessageInput');
@@ -755,7 +860,10 @@ handleNewMessage(messageData) {
 
         chatMessages.appendChild(notification);
         setTimeout(() => notification.remove(), 3000);
-        this.scrollToBottom();
+        
+        if (this.isAtBottom) {
+            this.scrollToBottom();
+        }
     }
 
     handleUserTyping(data) {
@@ -802,16 +910,22 @@ handleNewMessage(messageData) {
             </div>
         `;
             chatMessages.appendChild(indicator);
-            this.scrollToBottom();
+            
+            if (this.isAtBottom) {
+                this.scrollToBottom();
+            }
         }
     }
 
     scrollToBottom() {
         const chatMessages = $('#chatMessages');
         if (chatMessages) {
-            setTimeout(() => {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }, 100);
+            requestAnimationFrame(() => {
+                chatMessages.scrollTo({
+                    top: chatMessages.scrollHeight,
+                    behavior: 'smooth'
+                });
+            });
         }
     }
 
@@ -891,15 +1005,25 @@ handleNewMessage(messageData) {
         this.currentPage = 1;
         this.hasMoreMessages = true;
         this.isLoadingOlderMessages = false;
+        this.isAtBottom = true;
+        this.isInitialLoad = true;
 
         this.handleTypingStop();
         this.emojiPicker.close();
+    }
 
-        const messageInput = $('#chatMessageInput');
-        if (messageInput) {
-            messageInput.value = '';
-            this.resizeTextarea(messageInput);
-        }
+    cleanup() {
+        console.log('PrivateChat: Cleaning up all data');
+        this.closeChat();
+        this.messages = [];
+        this.typingUsers.clear();
+        this.pendingMessageIds.clear();
+        this.currentUserId = null;
+        this.isInitialized = false;
+        
+        
+        this.clearMessages();
+        this.hideChat();
     }
 
     handleMessageSent(message) {

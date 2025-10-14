@@ -2,6 +2,8 @@ export const $  = (sel, el = document) => el.querySelector(sel);
 export const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
 export let socket = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 export async function apiGet(url) {
   const res = await fetch(url, { headers: { "Accept": "application/json" }});
@@ -54,15 +56,23 @@ export function escapeHTML(s) {
   return String(s ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-
 export function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}/ws`;
   
+  
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.close();
+  }
+  
   socket = new WebSocket(wsUrl);
 
   socket.addEventListener('open', (event) => {
-    console.log('WebSocket connected');
+    console.log('WebSocket connected successfully');
+    reconnectAttempts = 0; 
+    
+    
+    document.dispatchEvent(new CustomEvent('websocketReady'));
   });
 
   socket.addEventListener('message', (event) => {
@@ -70,11 +80,18 @@ export function connectWebSocket() {
   });
 
   socket.addEventListener('close', (event) => {
-    console.log('WebSocket disconnected');
+    console.log('WebSocket disconnected:', event.code, event.reason);
     
-    setTimeout(() => {
-      connectWebSocket();
-    }, 3000);
+    
+    if (event.code !== 1000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      const delay = Math.min(1000 * reconnectAttempts, 10000); 
+      console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts})`);
+      
+      setTimeout(() => {
+        connectWebSocket();
+      }, delay);
+    }
   });
 
   socket.addEventListener('error', (error) => {
@@ -82,11 +99,31 @@ export function connectWebSocket() {
   });
 }
 
+export function reconnectWebSocket() {
+  console.log('Forcing WebSocket reconnection for user change...');
+  reconnectAttempts = 0;
+  connectWebSocket();
+}
+
 export function emit(type, data) {
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type, data }));
+  } else {
+    console.warn('WebSocket not connected, cannot emit message');
   }
 }
+
+
+document.addEventListener('userLoggedIn', () => {
+  console.log('User logged in, reconnecting WebSocket...');
+  setTimeout(() => {
+    reconnectWebSocket();
+  }, 500);
+});
+
+document.addEventListener('userLoggedOut', () => {
+  console.log('User logged out, WebSocket will be reconnected on next login');
+});
 
 
 connectWebSocket();

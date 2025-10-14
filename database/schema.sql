@@ -11,9 +11,11 @@ CREATE TABLE IF NOT EXISTS users (
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
     age INTEGER,
-    gender TEXT DEFAULT NULL,   --this was added cus it is a requirement in realtimeforum 
+    gender TEXT DEFAULT NULL,
     account_description TEXT DEFAULT NULL, -- Optional 
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    CHECK(gender IN ('female', 'male'))
 );
 
 -- Predefined categories

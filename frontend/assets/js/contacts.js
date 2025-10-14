@@ -10,20 +10,58 @@ class ContactsManager {
         this.activeChat = null;
         this.isInitialized = false;
         this.pendingContacts = [];
-        this.unreadCounts = new Map(); 
+        this.unreadCounts = new Map();
         this.setupMessageActivityListener();
+        this.setupUserChangeHandler();
         this.init();
     }
 
-    setupMessageActivityListener() {
-        document.addEventListener('messageActivity', (event) => {
-            const { userId, timestamp } = event.detail;
-            this.updateContactOrderAfterMessage(userId, timestamp);
+    setupUserChangeHandler() {
+        
+        document.addEventListener('userLoggedIn', () => {
+            this.handleUserChange();
+        });
+        
+        document.addEventListener('userLoggedOut', () => {
+            this.handleUserChange();
         });
     }
 
-    async init() {
+    handleUserChange() {
+        console.log('ContactsManager: User changed, reinitializing...');
+        this.cleanup();
+        
+        
+        setTimeout(() => {
+            this.initializeUserAndContacts();
+        }, 100);
+    }
 
+    cleanup() {
+        console.log('ContactsManager: Cleaning up all data');
+        
+        this.contacts.clear();
+        this.currentUser = null;
+        this.currentUserId = null;
+        this.activeChat = null;
+        this.isInitialized = false;
+        this.unreadCounts.clear();
+        this.saveUnreadCounts();
+        
+        
+        const contactsContainer = $('.private-messages-scroll');
+        if (contactsContainer) {
+            contactsContainer.innerHTML = '';
+        }
+        
+        
+        this.removeActiveContactHighlight();
+        
+        
+        this.pendingContacts = [];
+    }
+
+    async init() {
         this.setupWebSocketHandlers();
         this.setupFilterHandlers();
         this.setupChatToggleHandlers();
@@ -36,7 +74,6 @@ class ContactsManager {
         this.setupPeriodicRefresh();
     }
 
-    
     loadPersistedUnreadCounts() {
         try {
             const stored = localStorage.getItem('privateChatUnreadCounts');
@@ -50,7 +87,6 @@ class ContactsManager {
         }
     }
 
-    
     saveUnreadCounts() {
         try {
             const counts = Object.fromEntries(this.unreadCounts);
@@ -60,12 +96,10 @@ class ContactsManager {
         }
     }
 
-    
     getUnreadCount(userId) {
         return this.unreadCounts.get(userId) || 0;
     }
 
-    
     setUnreadCount(userId, count) {
         if (count > 0) {
             this.unreadCounts.set(userId, count);
@@ -78,7 +112,6 @@ class ContactsManager {
         this.updateCounterBadge(userId);
     }
 
-    
     incrementUnreadCount(userId) {
         const currentCount = this.getUnreadCount(userId);
         const newCount = currentCount + 1;
@@ -86,12 +119,10 @@ class ContactsManager {
         return newCount;
     }
 
-    
     resetUnreadCount(userId) {
         this.setUnreadCount(userId, 0);
     }
 
-    
     updateCounterBadge(userId) {
         const contactElement = $(`.contact[data-user-id="${userId}"]`);
         if (!contactElement) {
@@ -99,14 +130,12 @@ class ContactsManager {
             return;
         }
 
-        
         this.removeCounterBadge(userId);
 
         const unreadCount = this.getUnreadCount(userId);
         if (unreadCount > 0) {
             const counter = document.createElement('span');
             counter.className = 'unread-counter';
-            
             
             if (unreadCount < 10) {
                 counter.classList.add('single-digit');
@@ -122,7 +151,6 @@ class ContactsManager {
         }
     }
 
-    
     removeCounterBadge(userId) {
         const contactElement = $(`.contact[data-user-id="${userId}"]`);
         if (!contactElement) return;
@@ -133,7 +161,6 @@ class ContactsManager {
         }
     }
 
-    
     refreshAllCounterBadges() {
         this.unreadCounts.forEach((count, userId) => {
             if (count > 0) {
@@ -142,20 +169,32 @@ class ContactsManager {
         });
     }
 
+    setupMessageActivityListener() {
+        document.addEventListener('messageActivity', (event) => {
+            const { userId, timestamp } = event.detail;
+            this.updateContactOrderAfterMessage(userId, timestamp);
+        });
+    }
+
     async initializeUserAndContacts() {
         try {
-            await this.fetchCurrentUser();
+            
+            this.cleanup();
+            
+            console.log('ContactsManager: Fetching current user...');
+            const userFetched = await this.fetchCurrentUser();
 
-            if (!this.currentUser) {
+            if (!userFetched) {
+                console.log('ContactsManager: No user logged in, waiting...');
                 setTimeout(() => this.initializeUserAndContacts(), 1000);
                 return;
             }
 
-
+            console.log('ContactsManager: Loading contacts for user:', this.currentUser);
             await this.loadContacts();
-
             this.isInitialized = true;
 
+            
             document.dispatchEvent(new CustomEvent('contactsManagerReady', {
                 detail: {
                     currentUserId: this.currentUserId,
@@ -163,8 +202,10 @@ class ContactsManager {
                 }
             }));
 
+            console.log('ContactsManager: Initialization complete');
+
         } catch (error) {
-            console.error('Failed to initialize contacts manager:', error);
+            console.error('ContactsManager: Failed to initialize:', error);
             setTimeout(() => this.initializeUserAndContacts(), 2000);
         }
     }
@@ -175,21 +216,28 @@ class ContactsManager {
 
             if (data.success && data.message) {
                 this.currentUser = data.message;
-                
                 this.currentUserId = await this.getUserIdFromUsername(data.message);
                 
                 if (!this.currentUserId) {
+                    console.error('ContactsManager: Failed to get user ID for:', this.currentUser);
                     return false;
                 }
 
                 window.currentUser = this.currentUser;
                 window.currentUserId = this.currentUserId;
+                
+                console.log('ContactsManager: Current user set to:', this.currentUser, 'ID:', this.currentUserId);
                 return true;
             } else {
+                console.log('ContactsManager: No active session');
+                this.currentUser = null;
+                this.currentUserId = null;
                 return false;
             }
         } catch (error) {
-            console.error('Failed to fetch current user:', error);
+            console.error('ContactsManager: Failed to fetch current user:', error);
+            this.currentUser = null;
+            this.currentUserId = null;
             return false;
         }
     }
@@ -209,11 +257,14 @@ class ContactsManager {
 
     async loadContacts() {
         try {
+            console.log('ContactsManager: Loading contacts from API...');
             const data = await apiGet('/api/contacts');
 
             if (data.success && data.contacts && Array.isArray(data.contacts)) {
+                console.log('ContactsManager: Received', data.contacts.length, 'contacts');
 
                 const filteredContacts = this.filterOutCurrentUser(data.contacts);
+                console.log('ContactsManager: After filtering current user:', filteredContacts.length, 'contacts');
 
                 this.contacts.clear();
                 filteredContacts.forEach(contact => {
@@ -221,13 +272,16 @@ class ContactsManager {
                 });
 
                 this.renderContacts(filteredContacts);
+                
+                
+                this.refreshAllCounterBadges();
 
             } else {
-                console.error('Contacts API returned invalid data');
+                console.error('ContactsManager: Contacts API returned invalid data:', data);
                 this.showErrorMessage('Failed to load contacts');
             }
         } catch (error) {
-            console.error('Failed to load contacts:', error);
+            console.error('ContactsManager: Failed to load contacts:', error);
             this.showErrorMessage('Failed to load contacts');
         }
     }
@@ -281,7 +335,6 @@ class ContactsManager {
 
         
         this.refreshAllCounterBadges();
-
     }
 
     sortContactsAlphabetically(contacts) {
@@ -374,7 +427,6 @@ class ContactsManager {
     }
 
     updateContactOrderAfterMessage(userId, timestamp) {
-
         const contact = this.contacts.get(userId);
         if (!contact) return;
 
@@ -405,7 +457,6 @@ class ContactsManager {
         contactElements.forEach(element => {
             contactsContainer.appendChild(element);
         });
-
     }
 
     setupWebSocketHandlers() {
@@ -413,7 +464,6 @@ class ContactsManager {
             console.error('WebSocket not available');
             return;
         }
-
 
         socket.addEventListener('message', (event) => {
             try {
@@ -441,7 +491,7 @@ class ContactsManager {
     }
 
     handlePrivateMessageForCurrentUser(messageData) {
-        
+        console.log('ContactsManager handling private message:', messageData);
         
         const isForCurrentUser = 
             messageData.to_user_id === this.currentUserId || 
@@ -454,13 +504,26 @@ class ContactsManager {
         this.handleNewPrivateMessage(messageData);
         
         
-        if (messageData.to_user_id === this.currentUserId && messageData.from_user_id !== this.currentUserId) {
+        if (messageData.to_user_id === this.currentUserId && 
+            messageData.from_user_id !== this.currentUserId &&
+            !this.isChatOpenWithUser(messageData.from_user_id)) {
+            
+            console.log('Dispatching notification event for message');
+            document.dispatchEvent(new CustomEvent('newPrivateMessage', {
+                detail: messageData
+            }));
+            
             this.incrementUnreadCount(messageData.from_user_id);
         }
     }
 
-    handleNewPrivateMessage(messageData) {
+    
+    isChatOpenWithUser(userId) {
+        if (!this.activeChat) return false;
+        return this.activeChat.user_id === userId;
+    }
 
+    handleNewPrivateMessage(messageData) {
         const otherUserId = messageData.from_user_id === this.currentUserId ?
             messageData.to_user_id : messageData.from_user_id;
 
@@ -505,7 +568,6 @@ class ContactsManager {
         allFilter.addEventListener('click', (e) => handleFilterClick('all', e));
         onlineFilter.addEventListener('click', (e) => handleFilterClick('online', e));
         offlineFilter.addEventListener('click', (e) => handleFilterClick('offline', e));
-
     }
 
     setupChatToggleHandlers() {
@@ -541,6 +603,11 @@ class ContactsManager {
             window.privateChatNotifications.handleChatOpened(contact.user_id);
         }
         
+        
+        document.dispatchEvent(new CustomEvent('chatOpened', {
+            detail: { userId: contact.user_id }
+        }));
+        
         privateChatManager.openChat(contact);
         this.showChatSection(contact);
     }
@@ -569,6 +636,13 @@ class ContactsManager {
     }
 
     closePrivateChat() {
+        if (this.activeChat) {
+            
+            document.dispatchEvent(new CustomEvent('chatClosed', {
+                detail: { userId: this.activeChat.user_id }
+            }));
+        }
+        
         this.activeChat = null;
         privateChatManager.closeChat();
         this.showPostsSection();
@@ -636,11 +710,6 @@ class ContactsManager {
 
     refreshContacts() {
         this.loadContacts();
-    }
-
-    
-    cleanup() {
-        this.saveUnreadCounts();
     }
 }
 

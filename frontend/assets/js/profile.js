@@ -1,6 +1,8 @@
-
 import { $, escapeHTML } from "./utils.js";
 
+
+let currentProfile = null;
+let isInitialized = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   const slot = $("#userProfile");
@@ -8,17 +10,82 @@ document.addEventListener("DOMContentLoaded", () => {
 
   renderSkeleton(slot);
   waitForLoginThenLoad(slot);
+  setupUserChangeHandlers();
 });
 
+function setupUserChangeHandlers() {
+  
+  document.addEventListener('userLoggedIn', () => {
+    console.log('Profile: User logged in, loading profile...');
+    const slot = $("#userProfile");
+    if (slot) {
+      renderSkeleton(slot);
+      waitForLoginThenLoad(slot);
+    }
+  });
 
+  document.addEventListener('userLoggedOut', () => {
+    console.log('Profile: User logged out, clearing profile...');
+    currentProfile = null;
+    isInitialized = false;
+    
+    const slot = $("#userProfile");
+    if (slot) {
+      renderLoggedOutState(slot);
+    }
+  });
+
+  
+  document.addEventListener('contactsManagerReady', () => {
+    console.log('Profile: Contacts manager ready, profile might need refresh');
+    const slot = $("#userProfile");
+    if (slot && !currentProfile) {
+      renderSkeleton(slot);
+      waitForLoginThenLoad(slot);
+    }
+  });
+}
+
+function renderLoggedOutState(slot) {
+  slot.innerHTML = `
+    <div class="profile-card">
+      <div class="avatar">
+        <div class="avatar-fallback">👤</div>
+      </div>
+      <div class="profile-info">
+        <div class="profile-name">Not Logged In</div>
+        <div class="profile-details">Please sign in to view profile</div>
+      </div>
+    </div>
+  `;
+}
 
 function waitForLoginThenLoad(slot) {
   let loaded = false;
+  let retryCount = 0;
+  const maxRetries = 5;
 
   const tryLoad = async () => {
     if (loaded) return;
+    
+    
+    if (!document.body.classList.contains("logged-in")) {
+      console.log('Profile: User not logged in, waiting...');
+      if (retryCount < maxRetries) {
+        retryCount++;
+        setTimeout(tryLoad, 500);
+      }
+      return;
+    }
+
     const ok = await loadProfile(slot);
-    if (ok) loaded = true;
+    if (ok) {
+      loaded = true;
+      isInitialized = true;
+    } else if (retryCount < maxRetries) {
+      retryCount++;
+      setTimeout(tryLoad, 500);
+    }
   };
 
   
@@ -37,32 +104,42 @@ function waitForLoginThenLoad(slot) {
   obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
 
   
-  setTimeout(tryLoad, 600);
-
-  
-  window.addEventListener("auth:login", () => tryLoad(), { once: true });
+  setTimeout(tryLoad, 1000);
 }
 
 async function loadProfile(slot) {
   try {
+    console.log('Profile: Loading profile data...');
     const resp = await fetch("/api/profile", {
       method: "GET",
       credentials: "include", 
       cache: "no-store",
     });
-    if (!resp.ok) return false; 
+    
+    if (!resp.ok) {
+      console.error('Profile: API response not OK', resp.status);
+      return false;
+    } 
 
     const res = await resp.json();
-    if (!res || !res.success || !res.data) return false;
+    console.log('Profile: API response:', res);
+    
+    if (!res || !res.success || !res.data) {
+      console.error('Profile: Invalid response data');
+      return false;
+    }
 
     const p = normalizeProfile(res.data);
+    currentProfile = p;
     renderProfile(slot, p);
+    
+    console.log('Profile: Successfully loaded for user:', p.username);
     return true;
-  } catch {
+  } catch (error) {
+    console.error('Profile: Failed to load profile:', error);
     return false;
   }
 }
-
 
 function normalizeProfile(raw) {
   const username = (raw.username ?? raw.userName ?? "").toString();
@@ -89,11 +166,11 @@ function renderSkeleton(slot) {
   slot.innerHTML = `
     <div class="profile-card">
       <div class="avatar">
-        <div class="avatar-fallback">•</div>
+        <div class="avatar-fallback skeleton">•</div>
       </div>
       <div class="profile-info">
-        <div class="profile-name">Loading...</div>
-        <div class="profile-details">Fetching profile...</div>
+        <div class="profile-name skeleton">Loading...</div>
+        <div class="profile-details skeleton">Fetching profile...</div>
       </div>
     </div>
   `;
@@ -129,6 +206,7 @@ function renderProfile(slot, profile) {
   `;
 }
 
+
 (function () {
   if (document.getElementById("profile-styles")) return;
 
@@ -140,8 +218,8 @@ function renderProfile(slot, profile) {
     }
 
     .profile-card {
-    position: relative;
-     height: 100%;
+      position: relative;
+      height: 100%;
       width: 70%;
       flex: 1;
       background: #111317;
@@ -219,6 +297,28 @@ function renderProfile(slot, profile) {
       font-size: 14px;
       line-height: 1.4;
     }
+
+    
+    .skeleton {
+      background: linear-gradient(90deg, #1a1f2e 25%, #22324e 50%, #1a1f2e 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s infinite;
+      border-radius: 4px;
+      color: transparent !important;
+    }
+
+    .skeleton::before {
+      content: "\\00a0"; 
+    }
+
+    @keyframes loading {
+      0% {
+        background-position: 200% 0;
+      }
+      100% {
+        background-position: -200% 0;
+      }
+    }
   `;
 
   const styleEl = document.createElement("style");
@@ -226,3 +326,6 @@ function renderProfile(slot, profile) {
   styleEl.textContent = styles;
   document.head.appendChild(styleEl);
 })();
+
+
+export { currentProfile, isInitialized };

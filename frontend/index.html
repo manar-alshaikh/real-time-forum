@@ -16,9 +16,9 @@
             padding: 0px;
             margin: 0px;
             background: #41443f;
-            
+
             color: #e6ebf3;
-            
+
             border-top: 1px solid #e9ecef;
         }
 
@@ -188,7 +188,7 @@
             -moz-appearance: none;
 
             background-color: #b3b0b2;
-            
+
             border-radius: 12px;
             padding: 10px 42px 10px 16px;
             font-size: 15px;
@@ -212,10 +212,9 @@
 
         .posts-filter:focus {
             outline: none;
-            box-shadow:  3px rgba(255, 192, 203, 0.4);
+            box-shadow: 3px rgba(255, 192, 203, 0.4);
             border-color: #5c585b;
         }
-
     </style>
 </head>
 
@@ -406,6 +405,48 @@
     <script type="module" src="assets/js/privateChatNotifications.js" defer></script>
 
     <script>
+        async function reinitializeApplication() {
+            console.log('Reinitializing entire application...');
+
+            if (typeof clearAllUserData === 'function') {
+                clearAllUserData();
+            }
+
+            if (typeof reconnectWebSocket === 'function') {
+                reconnectWebSocket();
+            }
+
+            setTimeout(() => {
+                if (typeof ContactsManager !== 'undefined') {
+                    window.contactsManager = new ContactsManager();
+                }
+                if (typeof PrivateChatManager !== 'undefined') {
+                    window.privateChatManager = new PrivateChatManager();
+                }
+                if (typeof PrivateChatNotifications !== 'undefined') {
+                    window.privateChatNotifications = new PrivateChatNotifications();
+                }
+            }, 1000);
+        }
+
+        document.addEventListener('userLoggedIn', reinitializeApplication);
+        document.addEventListener('userLoggedOut', reinitializeApplication);
+
+        function handleUserChange() {
+            console.log('User changed, reinitializing application...');
+
+            clearAllUserData();
+
+            setTimeout(() => {
+                window.contactsManager = new ContactsManager();
+                window.privateChatManager = new PrivateChatManager();
+                window.privateChatNotifications = new PrivateChatNotifications();
+            }, 500);
+        }
+
+        document.addEventListener('userLoggedIn', handleUserChange);
+        document.addEventListener('userLoggedOut', handleUserChange);
+
         function scrollToBottom() {
             const chatMessages = document.getElementById("chatMessages");
             if (chatMessages) {

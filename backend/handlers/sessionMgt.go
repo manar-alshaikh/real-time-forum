@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-
 const (
 	sessionCookieName = "session_token"
 	sessionDuration   = 24 * time.Hour
@@ -22,20 +21,20 @@ var (
 	sessions      = make(map[string]Session)
 	sessionMutex  = &sync.RWMutex{}
 	sessionErrors = map[string]error{
-		"not_found":  errors.New("session not found"),
-		"expired":    errors.New("session expired"),
-		"invalid":    errors.New("invalid session"),
+		"not_found": errors.New("session not found"),
+		"expired":   errors.New("session expired"),
+		"invalid":   errors.New("invalid session"),
 	}
 )
 
-// This reference is provided for context - the actual struct is defined in real-time-forum/backend/handlers/DBstructs.go
-// type Session struct {
-// 	SessionID string    `json:"session_id"`
-// 	UserID    int64     `json:"user_id"`
-// 	Username  string    `json:"username"`  // Added for better logging
-// 	ExpiresAt time.Time `json:"expires_at"`
-// 	CreatedAt time.Time `json:"created_at"` // Added for auditing
-// }
+
+
+
+
+
+
+
+
 
 func (s *Session) IsExpired() bool {
 	return s.ExpiresAt.Before(time.Now())
@@ -63,7 +62,7 @@ func cleanupDBExpiredSessions() {
 	if db == nil {
 		return
 	}
-	
+
 	query := "DELETE FROM sessions WHERE expires_at <= datetime('now')"
 	_, err := db.Exec(query)
 	if err != nil {
@@ -88,6 +87,19 @@ func CreateSession(userID int64, username string, w http.ResponseWriter) error {
 		return errors.New("invalid user data for session creation")
 	}
 
+	sessionMutex.Lock()
+	for token, existingSession := range sessions {
+		if existingSession.Username == username {
+			delete(sessions, token)
+			if db != nil {
+				query := "DELETE FROM sessions WHERE session_id = ?"
+				db.Exec(query, token)
+			}
+			break
+		}
+	}
+	sessionMutex.Unlock()
+
 	sessionToken := uuid.New().String()
 	now := time.Now()
 	expiresAt := now.Add(sessionDuration)
@@ -100,12 +112,12 @@ func CreateSession(userID int64, username string, w http.ResponseWriter) error {
 		CreatedAt: now,
 	}
 
-	// Save to database
+	
 	if db != nil {
 		query := `INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, ?)`
 		_, err := db.Exec(query, session.SessionID, session.UserID, session.ExpiresAt)
 		if err != nil {
-			// Continue anyway - session will be in memory only
+			
 		}
 	}
 
@@ -139,14 +151,14 @@ func GetSession(r *http.Request) (*Session, error) {
 		return nil, sessionErrors["invalid"]
 	}
 
-	// First check memory cache
+	
 	sessionMutex.RLock()
 	session, exists := sessions[cookie.Value]
 	sessionMutex.RUnlock()
 
 	if exists {
 		if session.IsExpired() {
-			// Auto-cleanup expired session
+			
 			deleteSessionFromStorage(session.SessionID)
 			return nil, sessionErrors["expired"]
 		}
@@ -156,18 +168,18 @@ func GetSession(r *http.Request) (*Session, error) {
 		return &session, nil
 	}
 
-	// If not in memory, check database
+	
 	if db != nil {
 		session, err = getSessionFromDB(cookie.Value)
 		if err != nil {
 			return nil, err
 		}
+
 		
-		// Cache in memory for future requests
 		sessionMutex.Lock()
 		sessions[session.SessionID] = session
 		sessionMutex.Unlock()
-		
+
 		return &session, nil
 	}
 
@@ -198,12 +210,12 @@ func getSessionFromDB(sessionToken string) (Session, error) {
 }
 
 func deleteSessionFromStorage(sessionToken string) {
-	// Delete from memory
+	
 	sessionMutex.Lock()
 	delete(sessions, sessionToken)
 	sessionMutex.Unlock()
 
-	// Delete from database
+	
 	if db != nil {
 		query := "DELETE FROM sessions WHERE session_id = ?"
 		db.Exec(query, sessionToken)
@@ -217,13 +229,13 @@ func RefreshSession(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	newExpiresAt := time.Now().Add(sessionDuration)
+
 	
-	// Update database
 	if db != nil {
 		query := "UPDATE sessions SET expires_at = ? WHERE session_id = ?"
 		db.Exec(query, newExpiresAt, session.SessionID)
 	}
-	
+
 	sessionMutex.Lock()
 	session.ExpiresAt = newExpiresAt
 	sessions[session.SessionID] = *session
@@ -253,13 +265,13 @@ func DeleteSession(w http.ResponseWriter, r *http.Request) error {
 
 	deleteSessionFromStorage(cookie.Value)
 
-	// Clear the cookie
+	
 	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    "",
-		Expires:  time.Now().Add(-1 * time.Hour), 
-		Path:     "/",
-		Secure:   true,
+		Name:    sessionCookieName,
+		Value:   "",
+		Expires: time.Now().Add(-1 * time.Hour),
+		Path:    "/",
+		Secure:  true,
 	})
 
 	return nil

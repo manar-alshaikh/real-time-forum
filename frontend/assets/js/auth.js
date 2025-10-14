@@ -303,25 +303,31 @@ async function handleSignIn() {
     if (!validateSignInForm()) {
         return;
     }
+    
     const username = loginUsername.value.trim();
     const password = loginPassword.value;
+    
     try {
         const response = await fetch('/api/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-              credentials: 'include',
+            credentials: 'include',
             body: JSON.stringify({
                 username: username,
                 password: password
             })
         });
+        
         const data = await response.json();
         if (data.success) {
-            setTimeout(() => {
-                showLoggedInState(data.message);
-            }, 1000);
+            
+            clearAllUserData();
+            
+            
+            window.location.reload();
+            
         } else {
             showSignInError(data.message || 'Invalid username or password', loginPassword);
         }
@@ -351,14 +357,13 @@ window.handleSignUp = async function () {
     try {
         const response = await fetch('/api/register', {
             method: 'POST',
-              credentials: 'include',
+            credentials: 'include',
             body: formData
         });
         const data = await response.json();
         if (data.success) {
-            setTimeout(() => {
-                showLoggedInState(registerUsername.value.trim());
-            }, 1000);
+            
+            window.location.reload();
         } else {
             showSignInError(data.message || 'Registration failed', registerUsername);
         }
@@ -387,14 +392,80 @@ function setupLogoutButton() {
 }
 
 async function handleLogout() {
-    const response = await fetch('/api/logout', {
-        method: 'POST',
-        credentials: 'include'
-    });
-    const data = await response.json();
-    if (data.success) {
+    try {
+        const response = await fetch('/api/logout', {
+            method: 'POST',
+            credentials: 'include'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            
+            clearAllUserData();
+            
+            
+            document.dispatchEvent(new CustomEvent('userLoggedOut'));
+            
+            showLoggedOutState();
+            
+            console.log('User logged out successfully');
+            
+            
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+        
+        clearAllUserData();
+        document.dispatchEvent(new CustomEvent('userLoggedOut'));
         showLoggedOutState();
     }
+}
+
+function clearAllUserData() {
+    console.log('Clearing all user data...');
+    
+    
+    if (window.contactsManager) {
+        window.contactsManager.cleanup();
+        
+    }
+    
+    
+    if (window.privateChatManager) {
+        window.privateChatManager.cleanup();
+        window.privateChatManager = null;
+    }
+    
+    
+    if (window.privateChatNotifications) {
+        window.privateChatNotifications.cleanup();
+        
+    }
+    
+    
+    window.currentUser = null;
+    window.currentUserId = null;
+    
+    
+    const postsScroll = document.querySelector('.posts-scroll');
+    if (postsScroll) postsScroll.innerHTML = '';
+    
+    const contactsScroll = document.querySelector('.private-messages-scroll');
+    if (contactsScroll) contactsScroll.innerHTML = '';
+    
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) chatMessages.innerHTML = '';
+    
+    
+    const userProfile = document.getElementById('userProfile');
+    if (userProfile) {
+        userProfile.innerHTML = 'Profile';
+    }
+    
+    console.log('All user data cleared');
 }
 
 window.handleLogout = handleLogout;
@@ -405,7 +476,6 @@ async function checkSession() {
             credentials: 'include' 
         });
         
-        
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             throw new Error('Invalid response from server');
@@ -413,7 +483,11 @@ async function checkSession() {
         
         const data = await response.json();
         if (data.success) {
+            
+            clearAllUserData();
             showLoggedInState(data.message);
+            
+            
         } else {
             showLoggedOutState();
         }
