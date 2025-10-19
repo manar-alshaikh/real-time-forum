@@ -1,0 +1,159 @@
+@media (min-width: 600px) and (max-width: 1023px) {
+    .private-messages-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .private-messages-filters label {
+        text-align: center;
+        width: 100%;
+        font-size: 12px;
+    }
+
+    .welcome-message h2 {
+        font-size: 15px;
+    }
+
+    .welcome-message p {
+        font-size: 9px;
+    }
+
+    .react-btn {
+        font-size: 8px;
+    }
+
+    .comment-toggle-btn {
+        font-size: 8px;
+    }
+
+    .contact img {
+        width: 35px;
+        height: 35px;
+    }
+
+    .contact-username {
+        font-size: 10px;
+    }
+
+    .contact-username .contact-status {
+        font-size: 5px;
+    }
+}
+
+@media (max-width: 600px) {
+    .main-page {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        grid-template-areas:
+            "topbar"
+            "profile"
+            "notification-panel"
+            "private-messages-bar"
+            "posts";
+        height: auto;
+        min-height: 100vh;
+        width: 100%;
+        gap: 2rem;
+        padding: 1rem;
+    }
+
+    .topbar {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        height: 100%;
+        margin-bottom: 20px;
+    }
+
+    .logout-btn {
+        position: absolute;
+    }
+
+    .private-messages-bar {
+        margin: 0px;
+        height: 300px;
+    }
+
+    .composer-backdrop {
+        align-items: flex-end;
+        /* Slide up from bottom on mobile */
+    }
+
+    .composer {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 80vh;
+        /* Take most of screen height */
+        max-height: 90vh;
+        border-radius: 16px 16px 0 0 !important;
+        /* Rounded top corners only */
+        padding: 20px 16px !important;
+        margin: 0;
+        box-sizing: border-box;
+        overflow-y: auto;
+        /* Allow scrolling if content overflows */
+    }
+
+    .composer h3 {
+        font-size: 20px !important;
+        margin-bottom: 16px !important;
+    }
+
+    .composer input[type="text"] {
+        font-size: 18px !important;
+        /* Larger text for mobile */
+        padding: 12px 14px !important;
+    }
+
+    .composer textarea {
+        height: 200px !important;
+        /* More height for easier typing */
+        font-size: 16px !important;
+        padding: 14px !important;
+    }
+
+    .composer .cats {
+        max-height: 120px !important;
+        /* Slightly smaller on mobile */
+    }
+
+    .composer .actions {
+        flex-direction: column-reverse;
+        /* Stack buttons vertically */
+        gap: 10px !important;
+        margin-top: 20px !important;
+    }
+
+    .composer .btn {
+        width: 100% !important;
+        /* Full width buttons */
+        padding: 14px !important;
+        font-size: 16px !important;
+    }
+
+    /* Optional: Add a handle indicator for the swipe-down gesture */
+    .composer::before {
+        content: "";
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 4px;
+        background: #666;
+        border-radius: 2px;
+    }
+
+    .topbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+
+.logout-btn {
+    position: static;
+}
+
+}
